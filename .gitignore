@@ -28,3 +28,7 @@ intyma-app/videos/
 # Exclude sensitive JSON files
 legacy/*.json
 intyma-app/*.json
+
+# Fichiers de config d'IDE et caches Mac
+.idea/
+.DS_Store
