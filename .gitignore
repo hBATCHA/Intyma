@@ -1,0 +1,30 @@
+# Python environment and cache
+.venv/
+__pycache__/
+env/
+
+# Node modules for React
+/intyma-app/frontend/node_modules/
+
+# Exclude local media/images folders (just in case)
+media/
+legacy/Privé/
+legacy/images/
+legacy/mes_videos/
+intyma-app/images/
+intyma-app/uploads/
+intyma-app/videos/
+
+# Exclude all videos/images if ever copied by mistake
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.jpg
+*.jpeg
+*.png
+*.webp
+
+# Exclude sensitive JSON files
+legacy/*.json
+intyma-app/*.json
