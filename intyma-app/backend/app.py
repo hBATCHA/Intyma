@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from models import db, Scene, Actrice, Acteur, Tag, Favorite, History
@@ -32,6 +32,14 @@ def get_scenes():
             "chemin": s.chemin,
             "note_perso": s.note_perso,
             "date_ajout": s.date_ajout.isoformat() if s.date_ajout else None,
+            "synopsis": s.synopsis,
+            "duree": s.duree,
+            "qualite": s.qualite,
+            "site": s.site,
+            "studio": s.studio,
+            "date_scene": s.date_scene.isoformat() if s.date_scene else None,
+            "image": s.image,
+            "niveau_plaisirs": s.niveau_plaisir,
             # Ajoute d’autres champs au besoin
         })
     return jsonify(result)
@@ -89,6 +97,16 @@ def get_history():
             "commentaire_session": h.commentaire_session,
         })
     return jsonify(result)
+
+@app.route('/miniatures/<actrice>/<filename>')
+def serve_miniature(actrice, filename):
+    path = f'/Volumes/My Passport for Mac/Intyma/miniatures/{actrice}'
+    return send_from_directory(path, filename)
+
+@app.route('/images/<actrice>/<filename>')
+def serve_photo(actrice, filename):
+    path = f'/Volumes/My Passport for Mac/Intyma/images/{actrice}'
+    return send_from_directory(path, filename)
 
 if __name__ == '__main__':
     with app.app_context():
