@@ -17,7 +17,8 @@ import {
 import {
     Menu as MenuIcon,
     Person as PersonIcon,
-    Close as CloseIcon
+    Close as CloseIcon,
+    Settings as SettingsIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 
@@ -32,19 +33,19 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
     top: 0,
     zIndex: 1100,
     '& .MuiToolbar-root': {
-        minHeight: '80px',        // Augmenté de 70px à 80px pour plus d'espace
-        padding: '0 32px',        // Augmenté le padding horizontal
+        minHeight: '80px',
+        padding: '0 32px',
         justifyContent: 'space-between',
     }
 }));
 
 const Logo = styled('img')({
-    height: '100px',           // Augmenté de 45px à 60px
+    height: '100px',
     width: 'auto',
     cursor: 'pointer',
     transition: 'all 0.3s ease',
     filter: 'drop-shadow(0 2px 8px rgba(218, 165, 32, 0.3))',
-    marginRight: '16px',      // Ajout d'espace à droite
+    marginRight: '16px',
     '&:hover': {
         transform: 'scale(1.05)',
         filter: 'drop-shadow(0 4px 12px rgba(218, 165, 32, 0.5))',
@@ -98,6 +99,40 @@ const NavButton = styled(Button, {
         transform: 'translateY(0px)',
     }
 }));
+
+// Nouveau style pour le bouton Admin
+const AdminButton = styled(IconButton)({
+    background: 'linear-gradient(135deg, #FF6B35 0%, #F7931E 50%, #FF8C42 100%)',
+    color: '#fff',
+    margin: '0 8px',
+    padding: '10px',
+    borderRadius: '12px',
+    boxShadow: '0 3px 12px rgba(255, 107, 53, 0.3)',
+    transition: 'all 0.3s ease',
+    position: 'relative',
+    overflow: 'hidden',
+
+    '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: '-100%',
+        width: '100%',
+        height: '100%',
+        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+        transition: 'left 0.5s ease',
+    },
+
+    '&:hover': {
+        transform: 'translateY(-2px) scale(1.05)',
+        boxShadow: '0 6px 20px rgba(255, 107, 53, 0.4)',
+        background: 'linear-gradient(135deg, #FF8C42 0%, #FF6B35 50%, #F7931E 100%)',
+
+        '&::before': {
+            left: '100%',
+        }
+    }
+});
 
 const PremiumButton = styled(Button)({
     background: 'linear-gradient(135deg, #DAA520 0%, #B8860B 50%, #CD853F 100%)',
@@ -182,10 +217,11 @@ const navigationItems = [
 const Header = ({
                     currentPath = '/',
                     onNavigate = () => {},
-                    logoSrc = '/logo-intyma.png', // Chemin vers le logo Intyma
+                    logoSrc = '/logo-intyma.png',
                     logoAlt = 'Intyma',
                     userAvatar = null,
-                    userName = 'Privé'
+                    userName = 'Privé',
+                    showAdminButton = false  // Nouveau prop
                 }) => {
     const [mobileOpen, setMobileOpen] = useState(false);
     const theme = useTheme();
@@ -254,6 +290,25 @@ const Header = ({
                     </MobileNavItem>
                 ))}
 
+                {/* Bouton Admin en mobile */}
+                {showAdminButton && (
+                    <MobileNavItem
+                        button
+                        isActive={currentPath === '/admin'}
+                        onClick={() => handleNavigation('/admin')}
+                    >
+                        <ListItemText
+                            primary="⚙️ Administration"
+                            sx={{
+                                '& .MuiListItemText-primary': {
+                                    color: '#FF6B35 !important',
+                                    fontWeight: '600 !important'
+                                }
+                            }}
+                        />
+                    </MobileNavItem>
+                )}
+
                 {/* Bouton Privé en mobile */}
                 <Box sx={{ mt: 3, px: 2 }}>
                     <PremiumButton
@@ -279,12 +334,10 @@ const Header = ({
                             alt={logoAlt}
                             onClick={() => handleNavigation('/')}
                             onError={(e) => {
-                                // Fallback si l'image ne charge pas
                                 e.target.style.display = 'none';
                                 e.target.nextSibling.style.display = 'block';
                             }}
                         />
-                        {/* Fallback texte si logo ne charge pas */}
                         <Typography
                             variant="h5"
                             sx={{
@@ -306,13 +359,25 @@ const Header = ({
                         <>
                             <DesktopNav />
 
-                            {/* Bouton Privé Desktop */}
-                            <PremiumButton
-                                startIcon={userAvatar ? <Avatar src={userAvatar} sx={{ width: 24, height: 24 }} /> : <PersonIcon />}
-                                onClick={() => handleNavigation('/prive')}
-                            >
-                                {userName}
-                            </PremiumButton>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {/* Bouton Admin Desktop */}
+                                {showAdminButton && (
+                                    <AdminButton
+                                        onClick={() => handleNavigation('/admin')}
+                                        title="Administration"
+                                    >
+                                        <SettingsIcon />
+                                    </AdminButton>
+                                )}
+
+                                {/* Bouton Privé Desktop */}
+                                <PremiumButton
+                                    startIcon={userAvatar ? <Avatar src={userAvatar} sx={{ width: 24, height: 24 }} /> : <PersonIcon />}
+                                    onClick={() => handleNavigation('/prive')}
+                                >
+                                    {userName}
+                                </PremiumButton>
+                            </Box>
                         </>
                     )}
 

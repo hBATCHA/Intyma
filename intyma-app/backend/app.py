@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from models import db, Scene, Actrice, Acteur, Tag, Favorite, History
@@ -7,6 +7,8 @@ import random
 import re
 import os
 from urllib.parse import quote
+from werkzeug.utils import secure_filename
+
 
 app = Flask(__name__)
 CORS(app)  # Autorise les requêtes du frontend React
@@ -58,11 +60,14 @@ def get_actrices():
         result.append({
             "id": a.id,
             "nom": a.nom,
-            "note_moyenne": a.note_moyenne,
+            "biographie": a.biographie,                    # ✅ AJOUTÉ
             "photo": a.photo,
+            "tags_typiques": a.tags_typiques,              # ✅ AJOUTÉ
+            "note_moyenne": a.note_moyenne,
             "derniere_vue": a.derniere_vue.isoformat() if a.derniere_vue else None,
             "commentaire": a.commentaire,
-            # Ajoute d'autres champs au besoin
+            "date_naissance": a.date_naissance.isoformat() if a.date_naissance else None,  # ✅ AJOUTÉ
+            "nationalite": a.nationalite,                  # ✅ AJOUTÉ
         })
     return jsonify(result)
 
@@ -797,6 +802,571 @@ def surprends_moi():
             "actrices": ["Actrice Mystère"],
             "message": "Voici votre surprise ! 🎲"
         })
+
+
+def update_actrice_note_moyenne(actrice_id):
+    """Met à jour la note moyenne d'une actrice basée sur ses scènes"""
+    try:
+        actrice = db.session.get(Actrice, actrice_id)
+        if not actrice:
+            print(f"❌ Actrice {actrice_id} non trouvée")
+            return
+
+        print(f"🔍 Calcul note moyenne pour {actrice.nom} (ID: {actrice_id})")
+        print(f"📊 Nombre de scènes: {len(actrice.scenes)}")
+
+        # Récupérer toutes les notes des scènes de cette actrice
+        notes = []
+        for i, scene in enumerate(actrice.scenes):
+            print(f"  📝 Scène {i + 1}: '{scene.titre}'")
+            print(f"      note_perso: '{scene.note_perso}' (type: {type(scene.note_perso)})")
+
+            if scene.note_perso:
+                try:
+                    note_value = None
+
+                    if isinstance(scene.note_perso, str):
+                        note_str = scene.note_perso.strip()
+
+                        # 1. Compter les étoiles ⭐️ ou ⭐
+                        star_count = note_str.count('⭐️') + note_str.count('⭐')
+                        if star_count > 0:
+                            note_value = float(star_count)
+                            print(f"      ⭐ {star_count} étoiles trouvées → note: {note_value}")
+
+                        # 2. Chercher un nombre explicite (ex: "4.5", "8/10")
+                        elif '/' in note_str:
+                            # Format "8/10" ou "4/5"
+                            match = re.search(r'(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)', note_str)
+                            if match:
+                                numerator = float(match.group(1))
+                                denominator = float(match.group(2))
+                                note_value = (numerator / denominator) * 5  # Normaliser sur 5
+                                print(f"      🔢 Fraction {numerator}/{denominator} → note: {note_value}")
+
+                        else:
+                            # Chercher un nombre simple
+                            match = re.search(r'(\d+(?:\.\d+)?)', note_str)
+                            if match:
+                                note_value = float(match.group(1))
+                                print(f"      🔢 Nombre trouvé: {note_value}")
+
+                        # Si aucun pattern reconnu, essayer d'assigner une note basée sur des mots-clés
+                        if note_value is None:
+                            note_str_lower = note_str.lower()
+                            if any(word in note_str_lower for word in ['excellent', 'parfait', 'incroyable', 'ouf']):
+                                note_value = 5.0
+                                print(f"      💯 Mot-clé 'excellent' → note: {note_value}")
+                            elif any(word in note_str_lower for word in ['très bon', 'super', 'top', 'génial']):
+                                note_value = 4.5
+                                print(f"      👍 Mot-clé 'très bon' → note: {note_value}")
+                            elif any(word in note_str_lower for word in ['bon', 'bien', 'cool', 'sympa']):
+                                note_value = 4.0
+                                print(f"      👌 Mot-clé 'bon' → note: {note_value}")
+                            elif any(word in note_str_lower for word in ['moyen', 'correct', 'ok']):
+                                note_value = 3.0
+                                print(f"      😐 Mot-clé 'moyen' → note: {note_value}")
+                            else:
+                                print(f"      ❓ Aucun pattern reconnu dans '{note_str}'")
+
+                    elif isinstance(scene.note_perso, (int, float)):
+                        note_value = float(scene.note_perso)
+                        print(f"      ✅ Note numérique: {note_value}")
+
+                    # Ajouter la note si trouvée
+                    if note_value is not None:
+                        # Normaliser si note > 5
+                        if note_value > 5:
+                            note_value = note_value * 5 / 10
+                            print(f"      📐 Note normalisée: {note_value}")
+                        notes.append(note_value)
+
+                except Exception as e:
+                    print(f"      ❌ Erreur parsing note: {e}")
+                    continue
+            else:
+                print(f"      ⚪ Pas de note")
+
+        print(f"📋 Notes collectées: {notes}")
+
+        # Calculer la moyenne
+        if notes:
+            moyenne = sum(notes) / len(notes)
+            actrice.note_moyenne = round(moyenne, 1)
+            print(f"✅ Note moyenne calculée: {actrice.note_moyenne}")
+        else:
+            actrice.note_moyenne = None
+            print(f"⚪ Aucune note trouvée, note_moyenne = None")
+
+        # Mettre à jour la dernière vue
+        actrice.derniere_vue = datetime.now().date()
+
+        db.session.commit()
+        print(f"💾 Sauvegarde terminée pour {actrice.nom}")
+
+    except Exception as e:
+        print(f"❌ Erreur update_actrice_note_moyenne: {e}")
+        db.session.rollback()
+
+# ==================== ROUTES CRUD POUR SCENES ====================
+
+@app.route('/api/scenes', methods=['POST'])
+def create_scene():
+    """Créer une nouvelle scène"""
+    try:
+        data = request.get_json()
+        print(f"=== CREATE SCENE DEBUG ===")
+        print(f"Données reçues: {data}")
+
+        scene = Scene(
+            chemin=data['chemin'],
+            titre=data.get('titre'),
+            synopsis=data.get('synopsis'),
+            duree=data.get('duree'),
+            qualite=data.get('qualite'),
+            site=data.get('site'),
+            studio=data.get('studio'),
+            date_ajout=datetime.now().date(),
+            note_perso=data.get('note_perso'),
+            image=data.get('image')
+        )
+
+        # Gérer la date_scene si fournie
+        if data.get('date_scene'):
+            try:
+                scene.date_scene = datetime.strptime(data['date_scene'], '%Y-%m-%d').date()
+            except:
+                pass
+
+        db.session.add(scene)
+        db.session.flush()  # ⚠️ IMPORTANT pour avoir l'ID de la scène
+        print(f"Scène créée avec ID: {scene.id}")
+
+        # Associer les actrices
+        actrice_ids = []
+        print(f"actrice_ids dans data: {data.get('actrice_ids')}")
+
+        if 'actrice_ids' in data:
+            for actrice_id in data['actrice_ids']:
+                print(f"Traitement actrice_id: {actrice_id}")
+                actrice = db.session.get(Actrice, actrice_id)
+                if actrice:
+                    print(f"Actrice trouvée: {actrice.nom}")
+                    scene.actrices.append(actrice)
+                    actrice_ids.append(actrice_id)
+                    print(f"✅ Actrice {actrice.nom} ajoutée à la scène")
+                else:
+                    print(f"❌ Actrice {actrice_id} non trouvée")
+
+        # Associer les tags
+        if 'tags' in data:
+            for tag_name in data['tags']:
+                if tag_name.strip():
+                    tag = Tag.query.filter_by(nom=tag_name.strip()).first()
+                    if not tag:
+                        tag = Tag(nom=tag_name.strip())
+                        db.session.add(tag)
+                        db.session.flush()
+                    scene.tags.append(tag)
+
+        print(f"Avant commit - Nombre d'actrices liées à la scène: {len(scene.actrices)}")
+        db.session.commit()
+        print(f"Après commit - Commit réussi")
+
+        # 🔍 VÉRIFICATION POST-COMMIT
+        scene_fresh = db.session.get(Scene, scene.id)
+        print(f"🔍 Vérification post-commit:")
+        print(f"   Scène ID {scene_fresh.id} a {len(scene_fresh.actrices)} actrices liées")
+        for actrice in scene_fresh.actrices:
+            print(f"   - {actrice.nom} (ID: {actrice.id})")
+
+        # ✨ Mettre à jour les notes moyennes des actrices
+        print(f"🔄 Début mise à jour notes moyennes pour {len(actrice_ids)} actrices")
+        for actrice_id in actrice_ids:
+            print(f"🔄 Appel update_actrice_note_moyenne({actrice_id})")
+
+            # 🔍 Double vérification avant calcul
+            actrice_check = db.session.get(Actrice, actrice_id)
+            print(f"🔍 Avant calcul: {actrice_check.nom} a {len(actrice_check.scenes)} scènes")
+
+            update_actrice_note_moyenne(actrice_id)
+
+        print(f"=== FIN CREATE SCENE DEBUG ===")
+        return jsonify({"message": "Scène créée avec succès", "id": scene.id}), 201
+
+    except Exception as e:
+        print(f"❌ Erreur create_scene: {e}")
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/api/scenes/<int:scene_id>', methods=['PUT'])
+def update_scene(scene_id):
+    """Mettre à jour une scène"""
+    try:
+        scene = db.session.get(Scene, scene_id)
+        if not scene:
+            return jsonify({"error": "Scène non trouvée"}), 404
+
+        data = request.get_json()
+        print(f"=== UPDATE SCENE DEBUG ===")
+        print(f"Scène ID: {scene_id}")
+        print(f"Données reçues: {data}")
+
+        # Garder les anciennes actrices pour mise à jour
+        old_actrice_ids = [a.id for a in scene.actrices]
+        print(f"Anciennes actrices: {old_actrice_ids}")
+
+        # Mettre à jour les champs simples
+        for field in ['titre', 'synopsis', 'duree', 'qualite', 'site', 'studio', 'note_perso', 'image']:
+            if field in data:
+                setattr(scene, field, data[field])
+
+        # Mettre à jour les actrices
+        new_actrice_ids = []
+        print(f"Nouvelles actrice_ids: {data.get('actrice_ids')}")
+
+        if 'actrice_ids' in data:
+            scene.actrices.clear()
+            print(f"✅ Anciennes actrices supprimées")
+
+            for actrice_id in data['actrice_ids']:
+                print(f"Traitement actrice_id: {actrice_id}")
+                actrice = db.session.get(Actrice, actrice_id)
+                if actrice:
+                    scene.actrices.append(actrice)
+                    new_actrice_ids.append(actrice_id)
+                    print(f"✅ Actrice {actrice.nom} ajoutée")
+                else:
+                    print(f"❌ Actrice {actrice_id} non trouvée")
+
+        # Mettre à jour les tags
+        if 'tags' in data:
+            scene.tags.clear()
+            print(f"Tags à ajouter: {data['tags']}")
+            for tag_name in data['tags']:
+                if tag_name.strip():
+                    tag = Tag.query.filter_by(nom=tag_name.strip()).first()
+                    if not tag:
+                        tag = Tag(nom=tag_name.strip())
+                        db.session.add(tag)
+                        db.session.flush()
+                        print(f"✅ Nouveau tag créé: {tag_name}")
+                    scene.tags.append(tag)
+
+        if 'date_scene' in data and data['date_scene']:
+            try:
+                scene.date_scene = datetime.strptime(data['date_scene'], '%Y-%m-%d').date()
+            except:
+                pass
+
+        print(f"Avant commit - Nombre d'actrices liées: {len(scene.actrices)}")
+        db.session.commit()
+        print(f"Après commit - Commit réussi")
+
+        # 🔍 VÉRIFICATION POST-COMMIT
+        scene_fresh = db.session.get(Scene, scene.id)
+        print(f"🔍 Vérification post-commit:")
+        print(f"   Scène ID {scene_fresh.id} a {len(scene_fresh.actrices)} actrices liées")
+
+        # ✨ Mettre à jour les notes moyennes (anciennes ET nouvelles actrices)
+        all_actrice_ids = set(old_actrice_ids + new_actrice_ids)
+        print(f"🔄 Actrices à mettre à jour: {all_actrice_ids}")
+
+        for actrice_id in all_actrice_ids:
+            print(f"🔄 Appel update_actrice_note_moyenne({actrice_id})")
+
+            # 🔍 Double vérification avant calcul
+            actrice_check = db.session.get(Actrice, actrice_id)
+            print(f"🔍 Avant calcul: {actrice_check.nom} a {len(actrice_check.scenes)} scènes")
+
+            update_actrice_note_moyenne(actrice_id)
+
+        print(f"=== FIN UPDATE SCENE DEBUG ===")
+        return jsonify({"message": "Scène mise à jour avec succès"})
+
+    except Exception as e:
+        print(f"❌ Erreur update_scene: {e}")
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/api/scenes/<int:scene_id>', methods=['DELETE'])
+def delete_scene(scene_id):
+    """Supprimer une scène"""
+    try:
+        scene = db.session.get(Scene, scene_id)
+        if not scene:
+            return jsonify({"error": "Scène non trouvée"}), 404
+
+        # Supprimer d'abord les favoris liés à cette scène
+        Favorite.query.filter_by(scene_id=scene_id).delete()
+
+        # Supprimer l'historique lié à cette scène
+        History.query.filter_by(scene_id=scene_id).delete()
+
+        # Maintenant supprimer la scène
+        db.session.delete(scene)
+        db.session.commit()
+
+        return jsonify({"message": "Scène supprimée avec succès"})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+# ==================== ROUTES CRUD POUR ACTRICES ====================
+
+@app.route('/api/actrices', methods=['POST'])
+def create_actrice():
+    """Créer une nouvelle actrice"""
+    try:
+        data = request.get_json()
+
+        actrice = Actrice(
+            nom=data['nom'],
+            biographie=data.get('biographie'),
+            photo=data.get('photo'),
+            tags_typiques=data.get('tags_typiques'),
+            note_moyenne=data.get('note_moyenne'),
+            commentaire=data.get('commentaire'),
+            nationalite=data.get('nationalite')
+        )
+
+        # Gérer la date de naissance si fournie
+        if data.get('date_naissance'):
+            try:
+                actrice.date_naissance = datetime.strptime(data['date_naissance'], '%Y-%m-%d').date()
+            except:
+                pass  # Ignorer si format incorrect
+
+        db.session.add(actrice)
+        db.session.commit()
+
+        return jsonify({"message": "Actrice créée avec succès", "id": actrice.id}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/api/actrices/<int:actrice_id>', methods=['PUT'])
+def update_actrice(actrice_id):
+    """Mettre à jour une actrice"""
+    try:
+        actrice = db.session.get(Actrice, actrice_id)
+        if not actrice:
+            return jsonify({"error": "Actrice non trouvée"}), 404
+
+        data = request.get_json()
+
+        # Mettre à jour les champs simples
+        for field in ['nom', 'biographie', 'photo', 'tags_typiques', 'note_moyenne', 'commentaire', 'nationalite']:
+            if field in data:
+                setattr(actrice, field, data[field])
+
+        # Gérer la date de naissance
+        if 'date_naissance' in data and data['date_naissance']:
+            try:
+                actrice.date_naissance = datetime.strptime(data['date_naissance'], '%Y-%m-%d').date()
+            except:
+                pass  # Ignorer si format incorrect
+
+        db.session.commit()
+        return jsonify({"message": "Actrice mise à jour avec succès"})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/api/actrices/<int:actrice_id>', methods=['DELETE'])
+def delete_actrice(actrice_id):
+    """Supprimer une actrice"""
+    try:
+        actrice = db.session.get(Actrice, actrice_id)
+        if not actrice:
+            return jsonify({"error": "Actrice non trouvée"}), 404
+
+        # Dissocier l'actrice de toutes ses scènes (ne pas supprimer les scènes)
+        for scene in actrice.scenes:
+            scene.actrices.remove(actrice)
+
+        # Maintenant supprimer l'actrice
+        db.session.delete(actrice)
+        db.session.commit()
+
+        return jsonify({"message": "Actrice supprimée avec succès"})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+# ==================== GESTION DES FAVORIS ====================
+
+@app.route('/api/favorites', methods=['POST'])
+def add_favorite():
+    """Ajouter une scène aux favoris"""
+    try:
+        data = request.get_json()
+        scene_id = data['scene_id']
+
+        # Vérifier si la scène existe
+        scene = db.session.get(Scene, scene_id)
+        if not scene:
+            return jsonify({"error": "Scène non trouvée"}), 404
+
+        # Vérifier si déjà en favoris
+        existing = Favorite.query.filter_by(scene_id=scene_id).first()
+        if existing:
+            return jsonify({"error": "Déjà en favoris"}), 400
+
+        favorite = Favorite(
+            scene_id=scene_id,
+            date_ajout=datetime.now().date()
+        )
+
+        db.session.add(favorite)
+        db.session.commit()
+
+        return jsonify({"message": "Ajouté aux favoris"}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/api/favorites/<int:scene_id>', methods=['DELETE'])
+def remove_favorite(scene_id):
+    """Retirer une scène des favoris"""
+    try:
+        favorite = Favorite.query.filter_by(scene_id=scene_id).first()
+        if not favorite:
+            return jsonify({"error": "Pas en favoris"}), 404
+
+        db.session.delete(favorite)
+        db.session.commit()
+
+        return jsonify({"message": "Retiré des favoris"})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+# ==================== GESTION DE L'HISTORIQUE ====================
+
+@app.route('/api/history', methods=['POST'])
+def add_to_history():
+    """Ajouter une vue à l'historique"""
+    try:
+        data = request.get_json()
+        scene_id = data['scene_id']
+
+        # Vérifier si la scène existe
+        scene = db.session.get(Scene, scene_id)
+        if not scene:
+            return jsonify({"error": "Scène non trouvée"}), 404
+
+        history = History(
+            scene_id=scene_id,
+            date_vue=datetime.now().date(),
+            note_session=data.get('note_session'),
+            commentaire_session=data.get('commentaire_session')
+        )
+
+        db.session.add(history)
+        db.session.commit()
+
+        return jsonify({"message": "Ajouté à l'historique"}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/api/history/<int:history_id>', methods=['DELETE'])
+def remove_from_history(history_id):
+    """Supprimer un élément de l'historique"""
+    try:
+        history = db.session.get(History, history_id)
+        if not history:
+            return jsonify({"error": "Élément d'historique non trouvé"}), 404
+
+        db.session.delete(history)
+        db.session.commit()
+
+        return jsonify({"message": "Retiré de l'historique"})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+# ==================== ROUTE POUR RÉCUPÉRER UNE SCÈNE DÉTAILLÉE ====================
+
+@app.route('/api/scenes/<int:scene_id>')
+def get_scene_detail(scene_id):
+    """Récupérer les détails d'une scène"""
+    try:
+        scene = db.session.get(Scene, scene_id)
+        if not scene:
+            return jsonify({"error": "Scène non trouvée"}), 404
+
+        return jsonify({
+            "id": scene.id,
+            "titre": scene.titre,
+            "chemin": scene.chemin,
+            "synopsis": scene.synopsis,
+            "duree": scene.duree,
+            "qualite": scene.qualite,
+            "site": scene.site,
+            "studio": scene.studio,
+            "date_ajout": scene.date_ajout.isoformat() if scene.date_ajout else None,
+            "date_scene": scene.date_scene.isoformat() if scene.date_scene else None,
+            "note_perso": scene.note_perso,
+            "image": scene.image,
+            "niveau_plaisir": scene.niveau_plaisir,
+            "statut": scene.statut,
+            "actrices": [{"id": a.id, "nom": a.nom} for a in scene.actrices],
+            "tags": [{"id": t.id, "nom": t.nom} for t in scene.tags],
+            "is_favorite": bool(Favorite.query.filter_by(scene_id=scene.id).first()),
+            "view_count": History.query.filter_by(scene_id=scene.id).count()
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# ==================== ROUTE POUR RÉCUPÉRER UNE ACTRICE DÉTAILLÉE ====================
+
+@app.route('/api/actrices/<int:actrice_id>')
+def get_actrice_detail(actrice_id):
+    """Récupérer les détails d'une actrice"""
+    try:
+        actrice = db.session.get(Actrice, actrice_id)
+        if not actrice:
+            return jsonify({"error": "Actrice non trouvée"}), 404
+
+        return jsonify({
+            "id": actrice.id,
+            "nom": actrice.nom,
+            "biographie": actrice.biographie,
+            "photo": actrice.photo,
+            "tags_typiques": actrice.tags_typiques,
+            "note_moyenne": actrice.note_moyenne,
+            "derniere_vue": actrice.derniere_vue.isoformat() if actrice.derniere_vue else None,
+            "commentaire": actrice.commentaire,
+            "date_naissance": actrice.date_naissance.isoformat() if actrice.date_naissance else None,
+            "nationalite": actrice.nationalite,
+            "nb_scenes": len(actrice.scenes),
+            "scenes": [{"id": s.id, "titre": s.titre} for s in actrice.scenes]
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 
 if __name__ == '__main__':

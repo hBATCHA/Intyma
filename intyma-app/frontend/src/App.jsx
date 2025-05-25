@@ -2,8 +2,9 @@ import React, {useEffect, useState} from "react";
 import axios from "axios";
 import SceneCard from "./components/SceneCard";
 import Header from "./components/Header";
-import HeroSection from "./components/HeroSection"; // Nouveau import
-import {Container, Typography, Box} from "@mui/material";
+import HeroSection from "./components/HeroSection";
+import AdminInterface from "./components/AdminInterface"; // Nouveau import
+import {Container, Typography, Box, Button} from "@mui/material";
 import {BrowserRouter} from "react-router-dom";
 import ActriceDuJour from "./components/ActriceDuJour.jsx";
 import CollectionsFavorites from "./components/CollectionsFavorites.jsx";
@@ -11,40 +12,69 @@ import SuggestionsSidebar from "./components/SuggestionsSidebar.jsx";
 
 function App() {
     const [scenes, setScenes] = useState([]);
-    const [currentPath, setCurrentPath] = useState('/'); // État pour la navigation
+    const [currentPath, setCurrentPath] = useState('/');
+    const [showAdmin, setShowAdmin] = useState(false); // Nouvel état
 
     useEffect(() => {
-        axios.get("http://127.0.0.1:5000/api/scenes")
-            .then((res) => setScenes(res.data))
-            .catch((err) => console.error("Erreur API :", err));
-    }, []);
+        if (!showAdmin) {
+            axios.get("http://127.0.0.1:5000/api/scenes")
+                .then((res) => setScenes(res.data))
+                .catch((err) => console.error("Erreur API :", err));
+        }
+    }, [showAdmin]);
 
     // Fonction de navigation
     const handleNavigation = (path) => {
+        if (path === '/admin') {
+            setShowAdmin(true);
+            return;
+        }
         setCurrentPath(path);
         console.log(`Navigation vers: ${path}`);
-        // TODO: Ici vous pourrez ajouter React Router plus tard
     };
 
     // Fonction pour le bouton "Explorer maintenant"
     const handleExploreNow = () => {
         setCurrentPath('/decouvrir');
         console.log('Redirection vers Découvrir');
-        // TODO: Implémenter la navigation React Router vers /decouvrir
     };
+
+    // Si on est en mode admin, afficher seulement l'interface d'administration
+    if (showAdmin) {
+        return (
+            <div>
+                <Button
+                    onClick={() => setShowAdmin(false)}
+                    variant="outlined"
+                    sx={{
+                        position: 'fixed',
+                        top: 20,
+                        left: 20,
+                        zIndex: 1000,
+                        color: '#fff',
+                        borderColor: '#fff',
+                        background: 'rgba(0,0,0,0.5)'
+                    }}
+                >
+                    ← Retour à l'accueil
+                </Button>
+                <AdminInterface />
+            </div>
+        );
+    }
 
     return (
         <BrowserRouter>
             <div>
-                {/* Header avec navigation */}
+                {/* Header avec navigation - ajout du lien admin */}
                 <Header
                     currentPath={currentPath}
                     onNavigate={handleNavigation}
                     logoSrc="/logo-intyma.png"
                     userName="Utilisateur"
+                    showAdminButton={true} // Nouveau prop
                 />
 
-                {/* Hero Section - Nouveau ! */}
                 <HeroSection
                     title="Entrez dans l'univers Intyma..."
                     subtitle="Éveillez vos sens, explorez vos envies... toujours en privé."
@@ -57,11 +87,9 @@ function App() {
                 <ActriceDuJour
                     apiBaseUrl="http://127.0.0.1:5000"
                     onActriceClick={(actrice) => {
-                        // Navigation vers fiche actrice
                         console.log('Voir actrice:', actrice);
                     }}
                     onSceneClick={(scene) => {
-                        // Navigation vers scène
                         console.log('Voir scène:', scene);
                     }}
                 />
@@ -71,7 +99,6 @@ function App() {
                     title="📚 Mes Collections Premium"
                     maxItems={6}
                     onCollectionClick={(collection) => {
-                        // Navigation vers la collection
                         console.log('Ouvrir collection:', collection);
                     }}
                 />
