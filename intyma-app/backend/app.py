@@ -27,12 +27,19 @@ def home():
     return "API Intyma – Backend prêt !"
 
 
-# Exemple : route qui liste toutes les scènes (vide pour l'instant)
 @app.route('/api/scenes')
 def get_scenes():
     scenes = Scene.query.all()
     result = []
     for s in scenes:
+        # Construire la liste des actrices avec leurs détails
+        actrices_data = []
+        for actrice in s.actrices:  # s.actrices est la relation many-to-many
+            actrices_data.append({
+                "id": actrice.id,
+                "nom": actrice.nom
+            })
+
         result.append({
             "id": s.id,
             "titre": s.titre,
@@ -46,7 +53,8 @@ def get_scenes():
             "studio": s.studio,
             "date_scene": s.date_scene.isoformat() if s.date_scene else None,
             "image": s.image,
-            "niveau_plaisirs": s.niveau_plaisir,
+            "niveau_plaisir": s.niveau_plaisir,
+            "actrices": actrices_data,  # ← AJOUTER CETTE LIGNE
             # Ajoute d'autres champs au besoin
         })
     return jsonify(result)
@@ -908,6 +916,60 @@ def update_actrice_note_moyenne(actrice_id):
         print(f"❌ Erreur update_actrice_note_moyenne: {e}")
         db.session.rollback()
 
+
+def update_actrice_tags_typiques(actrice_id, min_occurrences=2):
+    """
+    Met à jour les tags typiques d'une actrice basés sur ses scènes
+    min_occurrences: nombre minimum d'apparitions d'un tag pour qu'il soit considéré comme "typique"
+    """
+    try:
+        actrice = db.session.get(Actrice, actrice_id)
+        if not actrice:
+            print(f"❌ Actrice {actrice_id} non trouvée")
+            return
+
+        print(f"🏷️ Calcul tags typiques pour {actrice.nom} (ID: {actrice_id})")
+        print(f"📊 Nombre de scènes: {len(actrice.scenes)}")
+
+        # Compter les occurrences de chaque tag
+        tag_counts = {}
+        for i, scene in enumerate(actrice.scenes):
+            print(f"  📝 Scène {i + 1}: '{scene.titre}' avec {len(scene.tags)} tags")
+            for tag in scene.tags:
+                tag_name = tag.nom.lower().strip()
+                tag_counts[tag_name] = tag_counts.get(tag_name, 0) + 1
+                print(f"      🏷️ Tag '{tag_name}' (count: {tag_counts[tag_name]})")
+
+        print(f"📋 Comptage des tags: {tag_counts}")
+
+        # Garder seulement les tags qui apparaissent assez souvent
+        frequent_tags = {
+            tag for tag, count in tag_counts.items()
+            if count >= min_occurrences
+        }
+
+        # Exclure les tags trop génériques
+        tags_to_exclude = {'hd', '4k', 'new', 'recent', 'premium', 'video', 'hot', 'sexy'}
+        useful_tags = frequent_tags - tags_to_exclude
+
+        # Limiter à 8 tags max et trier alphabétiquement
+        final_tags = sorted(useful_tags)[:8]
+
+        # Mettre à jour les tags typiques
+        if final_tags:
+            actrice.tags_typiques = ','.join(final_tags)
+            print(f"✅ Tags typiques mis à jour: {actrice.tags_typiques}")
+        else:
+            actrice.tags_typiques = None
+            print(f"⚪ Aucun tag typique trouvé")
+
+        db.session.commit()
+        print(f"💾 Sauvegarde terminée pour {actrice.nom}")
+
+    except Exception as e:
+        print(f"❌ Erreur update_actrice_tags_typiques: {e}")
+        db.session.rollback()
+
 # ==================== ROUTES CRUD POUR SCENES ====================
 
 @app.route('/api/scenes', methods=['POST'])
@@ -980,8 +1042,8 @@ def create_scene():
         for actrice in scene_fresh.actrices:
             print(f"   - {actrice.nom} (ID: {actrice.id})")
 
-        # ✨ Mettre à jour les notes moyennes des actrices
-        print(f"🔄 Début mise à jour notes moyennes pour {len(actrice_ids)} actrices")
+        # ✨ Mettre à jour les notes moyennes ET les tags des actrices
+        print(f"🔄 Début mise à jour notes moyennes et tags pour {len(actrice_ids)} actrices")
         for actrice_id in actrice_ids:
             print(f"🔄 Appel update_actrice_note_moyenne({actrice_id})")
 
@@ -990,6 +1052,10 @@ def create_scene():
             print(f"🔍 Avant calcul: {actrice_check.nom} a {len(actrice_check.scenes)} scènes")
 
             update_actrice_note_moyenne(actrice_id)
+
+            # 🏷️ NOUVEAU : Mettre à jour les tags typiques
+            print(f"🏷️ Appel update_actrice_tags_typiques({actrice_id})")
+            update_actrice_tags_typiques(actrice_id)
 
         print(f"=== FIN CREATE SCENE DEBUG ===")
         return jsonify({"message": "Scène créée avec succès", "id": scene.id}), 201
@@ -1069,7 +1135,7 @@ def update_scene(scene_id):
         print(f"🔍 Vérification post-commit:")
         print(f"   Scène ID {scene_fresh.id} a {len(scene_fresh.actrices)} actrices liées")
 
-        # ✨ Mettre à jour les notes moyennes (anciennes ET nouvelles actrices)
+        # ✨ Mettre à jour les notes moyennes ET les tags (anciennes ET nouvelles actrices)
         all_actrice_ids = set(old_actrice_ids + new_actrice_ids)
         print(f"🔄 Actrices à mettre à jour: {all_actrice_ids}")
 
@@ -1081,6 +1147,10 @@ def update_scene(scene_id):
             print(f"🔍 Avant calcul: {actrice_check.nom} a {len(actrice_check.scenes)} scènes")
 
             update_actrice_note_moyenne(actrice_id)
+
+            # 🏷️ NOUVEAU : Mettre à jour les tags typiques
+            print(f"🏷️ Appel update_actrice_tags_typiques({actrice_id})")
+            update_actrice_tags_typiques(actrice_id)
 
         print(f"=== FIN UPDATE SCENE DEBUG ===")
         return jsonify({"message": "Scène mise à jour avec succès"})
@@ -1260,7 +1330,7 @@ def remove_favorite(scene_id):
 
 @app.route('/api/history', methods=['POST'])
 def add_to_history():
-    """Ajouter une vue à l'historique"""
+    """Ajouter une vue à l'historique avec gestion des doublons"""
     try:
         data = request.get_json()
         scene_id = data['scene_id']
@@ -1270,6 +1340,20 @@ def add_to_history():
         if not scene:
             return jsonify({"error": "Scène non trouvée"}), 404
 
+        # Vérifier si déjà dans l'historique
+        existing_history = History.query.filter_by(scene_id=scene_id).first()
+        if existing_history:
+            # Mettre à jour la date de dernière vue
+            existing_history.date_vue = datetime.now().date()
+            if 'note_session' in data:
+                existing_history.note_session = data['note_session']
+            if 'commentaire_session' in data:
+                existing_history.commentaire_session = data['commentaire_session']
+
+            db.session.commit()
+            return jsonify({"message": "Historique mis à jour"}), 200
+
+        # Créer nouvelle entrée
         history = History(
             scene_id=scene_id,
             date_vue=datetime.now().date(),
@@ -1286,6 +1370,63 @@ def add_to_history():
         db.session.rollback()
         return jsonify({"error": str(e)}), 400
 
+
+# Route pour supprimer des favoris par scene_id
+@app.route('/api/favorites/scene/<int:scene_id>', methods=['DELETE'])
+def remove_favorite_by_scene(scene_id):
+    """Retirer une scène des favoris en utilisant scene_id"""
+    try:
+        favorite = Favorite.query.filter_by(scene_id=scene_id).first()
+        if not favorite:
+            return jsonify({"error": "Cette scène n'est pas en favoris"}), 404
+
+        db.session.delete(favorite)
+        db.session.commit()
+
+        return jsonify({"message": "Scène retirée des favoris avec succès"})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+# Route pour vérifier si une scène est dans l'historique
+@app.route('/api/history/<int:scene_id>', methods=['GET'])
+def check_history(scene_id):
+    """Vérifier si une scène est dans l'historique"""
+    try:
+        history_entry = History.query.filter_by(scene_id=scene_id).first()
+        if history_entry:
+            return jsonify({
+                "exists": True,
+                "id": history_entry.id,
+                "date_vue": history_entry.date_vue.isoformat() if history_entry.date_vue else None,
+                "note_session": history_entry.note_session,
+                "commentaire_session": history_entry.commentaire_session
+            })
+        else:
+            return jsonify({"exists": False}), 404
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# Route pour supprimer de l'historique par scene_id
+@app.route('/api/history/scene/<int:scene_id>', methods=['DELETE'])
+def remove_from_history_by_scene(scene_id):
+    """Supprimer toutes les entrées d'historique pour une scène"""
+    try:
+        deleted_count = History.query.filter_by(scene_id=scene_id).delete()
+
+        if deleted_count == 0:
+            return jsonify({"error": "Cette scène n'est pas dans l'historique"}), 404
+
+        db.session.commit()
+        return jsonify({"message": f"Scène supprimée de l'historique ({deleted_count} entrée(s) supprimée(s))"})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
 
 @app.route('/api/history/<int:history_id>', methods=['DELETE'])
 def remove_from_history(history_id):
@@ -1368,6 +1509,36 @@ def get_actrice_detail(actrice_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+@app.route('/api/admin/update_all_tags', methods=['POST'])
+def update_all_actress_tags():
+    """Endpoint pour mettre à jour tous les tags d'actrices (à usage admin)"""
+    try:
+        actrices = Actrice.query.all()
+        updated_count = 0
+
+        print(f"🔄 Début mise à jour des tags pour {len(actrices)} actrices")
+
+        for actrice in actrices:
+            if actrice.scenes:  # Seulement si elle a des scènes
+                print(f"🏷️ Mise à jour tags pour {actrice.nom} ({len(actrice.scenes)} scènes)")
+                update_actrice_tags_typiques(actrice.id)
+                updated_count += 1
+            else:
+                print(f"⚪ {actrice.nom} n'a pas de scènes, ignorée")
+
+        print(f"✅ Mise à jour terminée pour {updated_count} actrices")
+
+        return jsonify({
+            "message": f"Tags mis à jour pour {updated_count} actrices sur {len(actrices)}",
+            "success": True,
+            "updated_count": updated_count,
+            "total_count": len(actrices)
+        })
+
+    except Exception as e:
+        print(f"❌ Erreur update_all_actress_tags: {e}")
+        return jsonify({"error": str(e), "success": False}), 400
 
 if __name__ == '__main__':
     with app.app_context():

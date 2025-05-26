@@ -40,27 +40,9 @@ function App() {
     };
 
     // Si on est en mode admin, afficher seulement l'interface d'administration
+    // Si on est en mode admin, afficher seulement l'interface d'administration
     if (showAdmin) {
-        return (
-            <div>
-                <Button
-                    onClick={() => setShowAdmin(false)}
-                    variant="outlined"
-                    sx={{
-                        position: 'fixed',
-                        top: 20,
-                        left: 20,
-                        zIndex: 1000,
-                        color: '#fff',
-                        borderColor: '#fff',
-                        background: 'rgba(0,0,0,0.5)'
-                    }}
-                >
-                    ← Retour à l'accueil
-                </Button>
-                <AdminInterface />
-            </div>
-        );
+        return <AdminInterface onBack={() => setShowAdmin(false)} />;
     }
 
     return (
