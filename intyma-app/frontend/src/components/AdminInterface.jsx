@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Container,
     Typography,
@@ -29,7 +29,8 @@ import {
     Grow,
     Modal,
     Backdrop,
-    Rating
+    Rating,
+    CircularProgress,
 } from '@mui/material';
 import {
     Add,
@@ -46,10 +47,35 @@ import {
     Cancel,
     AccessTime,
     HighQuality,
-    CalendarToday, CalendarMonth, ArrowBack
+    CalendarToday, CalendarMonth, ArrowBack,
+    CheckCircle as CheckCircleIcon,
+    Error as ErrorIcon,
 } from '@mui/icons-material';
 import { styled, keyframes } from '@mui/material/styles';
 import axios from 'axios';
+import SceneSearchAndFilters from './SceneSearchAndFilters.jsx';
+import ActriceSearchAndFilters from './ActriceSearchAndFilters';
+import {
+    calculateActriceStats,
+    generateActriceFavHistoryBadges,
+    generateActriceBadges,
+    generateTagsBadges,
+    FavHistoryBadge,
+    InfoBadge,
+    BadgeContainer,
+    TagsBadgeContainer,
+    BadgeWithTooltip
+} from './ActriceBadgesSystem.jsx';
+import {
+    generateSceneFavHistoryBadges,
+    generateSceneBadges,
+    generateSceneTagsBadges,
+    SceneFavHistoryBadge,
+    SceneInfoBadge,
+    SceneBadgeContainer,
+    SceneTagsBadgeContainer,
+    SceneBadgeWithTooltip
+} from './SceneBadgesSystem.jsx';
 
 // =================== ANIMATIONS ===================
 
@@ -487,7 +513,7 @@ const CompactCard = styled(Card)({
     borderRadius: '16px',
     border: '1px solid rgba(218, 165, 32, 0.2)',
     color: '#fff',
-    height: '400px', // Hauteur fixe plus grande
+    height: '420px', // Hauteur fixe plus grande
     width: '100%', // Largeur fixe
     position: 'relative',
     overflow: 'hidden',
@@ -564,8 +590,8 @@ const CompactImageContainer = styled(Box)({
 });
 
 const CompactCardContent = styled(CardContent)({
-    padding: '16px',
-    height: '120px',
+    padding: '16px 16px 20px 16px', // ✅ Plus de padding en bas
+    height: '140px',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
@@ -684,6 +710,307 @@ function TabPanelContent({ children, value, index }) {
     );
 }
 
+// ✅ VERSION CORRIGÉE du composant
+const EnhancedWatchConfirmationDialog = ({ watchConfirmDialog, handleWatchConfirmation }) => {
+    // Vérification de sécurité
+    if (!watchConfirmDialog) {
+        return null;
+    }
+
+    return (
+        <StyledDialog
+            open={watchConfirmDialog.open}
+            onClose={() => handleWatchConfirmation(false)}
+            maxWidth="sm"
+            fullWidth
+        >
+            <DialogTitleStyled>
+                🎬 Confirmation rapide de visionnage
+            </DialogTitleStyled>
+            <DialogContent sx={{
+                background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%)',
+                color: '#fff',
+                textAlign: 'center',
+                py: 3
+            }}>
+                {watchConfirmDialog.scene && (
+                    <Box>
+                        <Typography variant="h6" sx={{ color: '#F4D03F', mb: 1 }}>
+                            "{watchConfirmDialog.scene.titre}"
+                        </Typography>
+
+                        <Typography variant="body2" sx={{ color: '#B8860B', mb: 2 }}>
+                            Ouverte il y a quelques secondes
+                        </Typography>
+
+                        <Typography variant="body1" sx={{ color: '#ccc', mb: 3 }}>
+                            Avez-vous regardé cette vidéo ?
+                        </Typography>
+
+                        {/* Options rapides avec notes prédéfinies */}
+                        <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap', mb: 2 }}>
+                            <Button
+                                onClick={() => handleWatchConfirmation(true, 5)}
+                                size="small"
+                                sx={{
+                                    background: 'linear-gradient(135deg, #4CAF50, #45A049)',
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    px: 2,
+                                    py: 1,
+                                    fontSize: '0.8rem',
+                                    '&:hover': {
+                                        background: 'linear-gradient(135deg, #5CBF60, #4CAF50)',
+                                        transform: 'translateY(-1px)'
+                                    }
+                                }}
+                            >
+                                ⭐⭐⭐⭐⭐ Excellent !
+                            </Button>
+
+                            <Button
+                                onClick={() => handleWatchConfirmation(true, 4)}
+                                size="small"
+                                sx={{
+                                    background: 'linear-gradient(135deg, #2196F3, #1976D2)',
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    px: 2,
+                                    py: 1,
+                                    fontSize: '0.8rem',
+                                    '&:hover': {
+                                        background: 'linear-gradient(135deg, #42A5F5, #2196F3)',
+                                        transform: 'translateY(-1px)'
+                                    }
+                                }}
+                            >
+                                ⭐⭐⭐⭐ Bien
+                            </Button>
+
+                            <Button
+                                onClick={() => handleWatchConfirmation(true, 3)}
+                                size="small"
+                                sx={{
+                                    background: 'linear-gradient(135deg, #FF9800, #F57C00)',
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    px: 2,
+                                    py: 1,
+                                    fontSize: '0.8rem',
+                                    '&:hover': {
+                                        background: 'linear-gradient(135deg, #FFB74D, #FF9800)',
+                                        transform: 'translateY(-1px)'
+                                    }
+                                }}
+                            >
+                                ⭐⭐⭐ OK
+                            </Button>
+                        </Box>
+
+                        {/* Boutons principaux */}
+                        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <Button
+                                onClick={() => handleWatchConfirmation(true, 4.5)}
+                                sx={{
+                                    background: 'linear-gradient(135deg, #4CAF50, #45A049)',
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    px: 3,
+                                    py: 1.5,
+                                    '&:hover': {
+                                        background: 'linear-gradient(135deg, #5CBF60, #4CAF50)',
+                                        transform: 'translateY(-1px)'
+                                    }
+                                }}
+                            >
+                                ✅ Oui, regardée
+                            </Button>
+
+                            <Button
+                                onClick={() => handleWatchConfirmation(false)}
+                                sx={{
+                                    background: 'linear-gradient(135deg, #FF6B35, #F44336)',
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    px: 3,
+                                    py: 1.5,
+                                    '&:hover': {
+                                        background: 'linear-gradient(135deg, #FF8A65, #FF6B35)',
+                                        transform: 'translateY(-1px)'
+                                    }
+                                }}
+                            >
+                                ❌ Juste ouverte
+                            </Button>
+                        </Box>
+
+                        <Typography variant="caption" sx={{
+                            color: '#888',
+                            mt: 2,
+                            display: 'block',
+                            fontStyle: 'italic'
+                        }}>
+                            💡 Cliquez sur les étoiles pour noter rapidement
+                        </Typography>
+                    </Box>
+                )}
+            </DialogContent>
+        </StyledDialog>
+    );
+};
+
+// =================== COMPOSANTS DE VALIDATION (AVANT AdminInterface) ===================
+
+const ValidatedActriceNameField = React.memo(({ value, onChange, isNew, actriceCheckState }) => {
+    return (
+        <Box sx={{ position: 'relative' }}>
+            <StyledTextField
+                label="Nom"
+                fullWidth
+                value={value || ''}
+                onChange={(e) => onChange('nom', e.target.value)}
+                placeholder="ex: Reagan Foxx"
+                error={actriceCheckState.exists}
+                sx={{
+                    '& .MuiInputBase-root': {
+                        borderColor: actriceCheckState.exists ? '#FF4444' :
+                            (value && !actriceCheckState.isChecking && !actriceCheckState.exists) ? '#4CAF50' :
+                                'rgba(218, 165, 32, 0.3)',
+                        '&:hover': {
+                            borderColor: actriceCheckState.exists ? '#FF6666' :
+                                (value && !actriceCheckState.isChecking && !actriceCheckState.exists) ? '#66BB6A' :
+                                    'rgba(218, 165, 32, 0.5)',
+                        }
+                    }
+                }}
+            />
+
+            {/* Message de validation séparé pour actrice */}
+            <Box sx={{
+                color: '#B8860B',
+                fontSize: '0.75rem',
+                marginTop: '8px',
+                fontWeight: 400,
+                fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                lineHeight: 1.66,
+                letterSpacing: '0.03333em'
+            }}>
+                {actriceCheckState.isChecking ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#DAA520' }}>
+                        <CircularProgress size={12} sx={{ color: '#DAA520' }} />
+                        Vérification...
+                    </Box>
+                ) : actriceCheckState.exists ? (
+                    <Box sx={{ color: '#FF4444', fontWeight: 600 }}>
+                        ⚠️ Cette actrice existe déjà : "{actriceCheckState.existingActrice?.nom}" (ID: {actriceCheckState.existingActrice?.id})
+                    </Box>
+                ) : value && !actriceCheckState.isChecking ? (
+                    <Box sx={{ color: '#4CAF50', fontWeight: 600 }}>
+                        ✅ Nom disponible
+                    </Box>
+                ) : (
+                    "Nom complet de l'actrice"
+                )}
+            </Box>
+
+            {/* Icône à droite */}
+            {value && (
+                <Box sx={{
+                    position: 'absolute',
+                    top: '25%',
+                    right: '12px',
+                    transform: 'translateY(-50%)',
+                    zIndex: 10,
+                    pointerEvents: 'none'
+                }}>
+                    {actriceCheckState.isChecking ? (
+                        <CircularProgress size={20} sx={{ color: '#DAA520' }} />
+                    ) : actriceCheckState.exists ? (
+                        <ErrorIcon sx={{ color: '#FF4444', fontSize: '1.5rem' }} />
+                    ) : (
+                        <CheckCircleIcon sx={{ color: '#4CAF50', fontSize: '1.5rem' }} />
+                    )}
+                </Box>
+            )}
+        </Box>
+    );
+});
+
+const ValidatedVideoPathField = React.memo(({ value, onChange, isNew, pathCheckState }) => {
+    return (
+        <Box sx={{ position: 'relative' }}>
+            <StyledTextField
+                label="Vidéo (ActriceName/filename.mp4)"
+                fullWidth
+                value={value || ''}
+                onChange={(e) => onChange('chemin_short', e.target.value)}
+                placeholder="ex: Alexa Payne/scene.mp4"
+                error={pathCheckState.exists}
+                sx={{
+                    '& .MuiInputBase-root': {
+                        borderColor: pathCheckState.exists ? '#FF4444' :
+                            (value && !pathCheckState.isChecking && !pathCheckState.exists) ? '#4CAF50' :
+                                'rgba(218, 165, 32, 0.3)',
+                        '&:hover': {
+                            borderColor: pathCheckState.exists ? '#FF6666' :
+                                (value && !pathCheckState.isChecking && !pathCheckState.exists) ? '#66BB6A' :
+                                    'rgba(218, 165, 32, 0.5)',
+                        }
+                    }
+                }}
+            />
+
+            {/* Message de validation séparé */}
+            <Box sx={{
+                color: '#B8860B',
+                fontSize: '0.75rem',
+                marginTop: '8px',
+                fontWeight: 400,
+                fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                lineHeight: 1.66,
+                letterSpacing: '0.03333em'
+            }}>
+                {pathCheckState.isChecking ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#DAA520' }}>
+                        <CircularProgress size={12} sx={{ color: '#DAA520' }} />
+                        Vérification...
+                    </Box>
+                ) : pathCheckState.exists ? (
+                    <Box sx={{ color: '#FF4444', fontWeight: 600 }}>
+                        ⚠️ Cette vidéo existe déjà : "{pathCheckState.existingScene?.titre}" (ID: {pathCheckState.existingScene?.id})
+                    </Box>
+                ) : value && !pathCheckState.isChecking ? (
+                    <Box sx={{ color: '#4CAF50', fontWeight: 600 }}>
+                        ✅ Chemin disponible
+                    </Box>
+                ) : (
+                    "Format: Nom de l'actrice/nom du fichier. Sera automatiquement préfixé par '/Volumes/My Passport for Mac/Privé/M364TR0N/'"
+                )}
+            </Box>
+
+            {/* Icône à droite */}
+            {value && (
+                <Box sx={{
+                    position: 'absolute',
+                    top: '25%',
+                    right: '12px',
+                    transform: 'translateY(-50%)',
+                    zIndex: 10,
+                    pointerEvents: 'none'
+                }}>
+                    {pathCheckState.isChecking ? (
+                        <CircularProgress size={20} sx={{ color: '#DAA520' }} />
+                    ) : pathCheckState.exists ? (
+                        <ErrorIcon sx={{ color: '#FF4444', fontSize: '1.5rem' }} />
+                    ) : (
+                        <CheckCircleIcon sx={{ color: '#4CAF50', fontSize: '1.5rem' }} />
+                    )}
+                </Box>
+            )}
+        </Box>
+    );
+});
+
 export default function AdminInterface({ onBack }) {
 
     const MINIATURES_PREFIX = '/Volumes/My Passport for Mac/Intyma/miniatures/';
@@ -712,11 +1039,11 @@ export default function AdminInterface({ onBack }) {
 
     // Fonction de débogage - ajoute ça temporairement
     const countScenesByActrice = (actriceId) => {
-        console.log('🔍 Recherche scènes pour actrice ID:', actriceId);
-        console.log('📊 Toutes les scènes:', scenes);
+        //console.log('🔍 Recherche scènes pour actrice ID:', actriceId);
+        //console.log('📊 Toutes les scènes:', scenes);
 
         const matchingScenes = scenes.filter(scene => {
-            console.log('🎬 Scene:', scene.titre, 'Actrices:', scene.actrices);
+            //console.log('🎬 Scene:', scene.titre, 'Actrices:', scene.actrices);
 
             // Vérifier différentes structures possibles
             if (scene.actrices) {
@@ -738,7 +1065,7 @@ export default function AdminInterface({ onBack }) {
             return false;
         });
 
-        console.log('✅ Scènes trouvées:', matchingScenes.length);
+        //console.log('✅ Scènes trouvées:', matchingScenes.length);
         return matchingScenes.length;
     };
 
@@ -747,6 +1074,149 @@ export default function AdminInterface({ onBack }) {
         return scenes.filter(scene =>
             scene.actrices && scene.actrices.some(actrice => actrice.id === actriceId)
         );
+    };
+
+    // Vérifier si une scène est en favoris
+    const isFavorite = (sceneId) => {
+        return favorites.some(fav => fav.scene_id === sceneId);
+    };
+
+    // Vérifier si une scène est dans l'historique
+    const isInHistory = (sceneId) => {
+        return history.some(hist => hist.scene_id === sceneId);
+    };
+
+    // Fonction pour vérifier si un chemin existe déjà
+    const checkScenePath = async (cheminShort) => {
+        if (!cheminShort || cheminShort.trim() === '') {
+            setPathCheckState({
+                isChecking: false,
+                exists: false,
+                existingScene: null,
+                lastCheckedPath: ''
+            });
+            return;
+        }
+
+        // Éviter les vérifications répétées
+        if (cheminShort === pathCheckState.lastCheckedPath) {
+            return;
+        }
+
+        setPathCheckState(prev => ({
+            ...prev,
+            isChecking: true,
+            lastCheckedPath: cheminShort
+        }));
+
+        try {
+            const response = await axios.post('http://127.0.0.1:5000/api/scenes/check-path', {
+                chemin_short: cheminShort
+            });
+
+            setPathCheckState({
+                isChecking: false,
+                exists: response.data.exists,
+                existingScene: response.data.scene || null,
+                lastCheckedPath: cheminShort
+            });
+
+        } catch (error) {
+            console.error('Erreur vérification chemin:', error);
+            setPathCheckState({
+                isChecking: false,
+                exists: false,
+                existingScene: null,
+                lastCheckedPath: cheminShort
+            });
+        }
+    };
+
+    // Fonction pour vérifier si une actrice existe déjà
+    const checkActriceName = async (nomActrice) => {
+        if (!nomActrice || nomActrice.trim() === '') {
+            setActriceCheckState({
+                isChecking: false,
+                exists: false,
+                existingActrice: null,
+                lastCheckedName: ''
+            });
+            return;
+        }
+
+        // Éviter les vérifications répétées
+        if (nomActrice.toLowerCase() === actriceCheckState.lastCheckedName.toLowerCase()) {
+            return;
+        }
+
+        setActriceCheckState(prev => ({
+            ...prev,
+            isChecking: true,
+            lastCheckedName: nomActrice
+        }));
+
+        try {
+            const response = await axios.post('http://127.0.0.1:5000/api/actrices/check-name', {
+                nom: nomActrice
+            });
+
+            setActriceCheckState({
+                isChecking: false,
+                exists: response.data.exists,
+                existingActrice: response.data.actrice || null,
+                lastCheckedName: nomActrice
+            });
+
+        } catch (error) {
+            console.error('Erreur vérification nom actrice:', error);
+            setActriceCheckState({
+                isChecking: false,
+                exists: false,
+                existingActrice: null,
+                lastCheckedName: nomActrice
+            });
+        }
+    };
+
+    const getViewCount = (sceneId) => {
+        // ✅ NOUVEAU : Chercher l'entrée d'historique pour cette scène
+        const historyEntry = history.find(hist => hist.scene_id === sceneId);
+
+        if (historyEntry) {
+            // ✅ NOUVEAU : Utiliser nb_vues si disponible, sinon fallback sur comptage manuel
+            return historyEntry.nb_vues || history.filter(hist => hist.scene_id === sceneId).length;
+        }
+
+        // Pas dans l'historique
+        return 0;
+    };
+
+    const getActriceViewStats = (actriceId) => {
+        // Récupérer toutes les scènes de cette actrice
+        const actriceScenes = scenes.filter(scene =>
+            scene.actrices && scene.actrices.some(actrice => actrice.id === actriceId)
+        );
+
+        let totalViews = 0;
+        let viewedScenesCount = 0;
+        let maxViews = 0;
+
+        actriceScenes.forEach(scene => {
+            const viewCount = getViewCount(scene.id);
+            if (viewCount > 0) {
+                totalViews += viewCount;
+                viewedScenesCount++;
+                maxViews = Math.max(maxViews, viewCount);
+            }
+        });
+
+        return {
+            totalViews,
+            viewedScenesCount,
+            totalScenes: actriceScenes.length,
+            maxViews,
+            averageViews: viewedScenesCount > 0 ? Math.round(totalViews / viewedScenesCount * 10) / 10 : 0
+        };
     };
 
     const [tabValue, setTabValue] = useState(0);
@@ -760,6 +1230,32 @@ export default function AdminInterface({ onBack }) {
     const [selectedItem, setSelectedItem] = useState(null);
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [editMode, setEditMode] = useState(false);
+    const [favorites, setFavorites] = useState([]);
+    const [history, setHistory] = useState([]);
+    const [filteredScenes, setFilteredScenes] = useState([]);
+    const [filteredActrices, setFilteredActrices] = useState([]);
+
+    // État pour gérer la vérification de l'unicité
+    const [pathCheckState, setPathCheckState] = useState({
+        isChecking: false,
+        exists: false,
+        existingScene: null,
+        lastCheckedPath: ''
+    });
+
+    // État pour gérer la vérification de l'unicité des actrices
+    const [actriceCheckState, setActriceCheckState] = useState({
+        isChecking: false,
+        exists: false,
+        existingActrice: null,
+        lastCheckedName: ''
+    });
+
+    const [watchConfirmDialog, setWatchConfirmDialog] = useState({
+        open: false,
+        scene: null,
+        openTime: null
+    });
 
     useEffect(() => {
         loadData();
@@ -767,14 +1263,24 @@ export default function AdminInterface({ onBack }) {
 
     const loadData = async () => {
         try {
-            const [scenesRes, actricesRes] = await Promise.all([
+            const [scenesRes, actricesRes, favoritesRes, historyRes] = await Promise.all([
                 axios.get('http://127.0.0.1:5000/api/scenes'),
-                axios.get('http://127.0.0.1:5000/api/actrices')
+                axios.get('http://127.0.0.1:5000/api/actrices'),
+                axios.get('http://127.0.0.1:5000/api/favorites'),
+                axios.get('http://127.0.0.1:5000/api/history')
             ]);
 
-            // Inverser l'ordre pour afficher les plus récentes en premier
-            setScenes(scenesRes.data.reverse());
-            setActrices(actricesRes.data.reverse());
+            const scenesData = scenesRes.data.reverse();
+            setScenes(scenesData);
+            setFilteredScenes(scenesData);
+
+            // ✅ CORRECTION : Initialiser aussi filteredActrices
+            const actricesData = actricesRes.data.reverse();
+            setActrices(actricesData);
+            setFilteredActrices(actricesData); // ✅ Ajouter cette ligne
+
+            setFavorites(favoritesRes.data);
+            setHistory(historyRes.data);
         } catch (error) {
             console.error('Erreur:', error);
             showSnackbar('Erreur lors du chargement des données', 'error');
@@ -784,14 +1290,14 @@ export default function AdminInterface({ onBack }) {
     // Fonction améliorée pour construire l'URL de l'image
     const buildImageUrl = (imagePath, type = 'scene') => {
         if (!imagePath) {
-            console.log('❌ Pas d\'image définie:', imagePath);
+            //console.log('❌ Pas d\'image définie:', imagePath);
             return null;
         }
 
         try {
             // Si l'image commence par http, l'utiliser directement
             if (imagePath.startsWith('http')) {
-                console.log('✅ URL directe:', imagePath);
+                //console.log('✅ URL directe:', imagePath);
                 return imagePath;
             }
 
@@ -826,14 +1332,14 @@ export default function AdminInterface({ onBack }) {
 
                 const baseEndpoint = isActricePhoto ? 'images' : 'miniatures';
                 const finalUrl = `http://127.0.0.1:5000/${baseEndpoint}/${encodeURIComponent(cleanActriceName)}/${encodeURIComponent(cleanFileName)}`;
-                console.log('✅ URL construite:', finalUrl, 'depuis:', imagePath);
+                //console.log('✅ URL construite:', finalUrl, 'depuis:', imagePath);
                 return finalUrl;
             }
 
-            console.log('❌ Impossible d\'extraire actrice/fichier depuis:', imagePath);
+            //console.log('❌ Impossible d\'extraire actrice/fichier depuis:', imagePath);
             return null;
         } catch (error) {
-            console.error('❌ Erreur construction URL image:', error, imagePath);
+            //console.error('❌ Erreur construction URL image:', error, imagePath);
             return null;
         }
     };
@@ -914,6 +1420,21 @@ export default function AdminInterface({ onBack }) {
 
     const openAddDialog = (type) => {
         setCurrentItem({ type, isNew: true });
+
+        // ✅ Réinitialiser l'état de vérification
+        setPathCheckState({
+            isChecking: false,
+            exists: false,
+            existingScene: null,
+            lastCheckedPath: ''
+        });
+        setActriceCheckState({
+            isChecking: false,
+            exists: false,
+            existingActrice: null,
+            lastCheckedName: ''
+        });
+
         setFormData(type === 'scene' ? {
             titre: '',
             chemin: '',
@@ -971,10 +1492,60 @@ export default function AdminInterface({ onBack }) {
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+
+        // ✅ Vérification automatique pour le chemin vidéo
+        if (field === 'chemin_short' && currentItem?.isNew) {
+            // Debounce la vérification pour éviter trop d'appels
+            clearTimeout(window.pathCheckTimeout);
+            window.pathCheckTimeout = setTimeout(() => {
+                checkScenePath(value);
+            }, 500); // Attendre 500ms après la dernière frappe
+        }
+
+        // ✅ NOUVEAU : Vérification automatique pour le nom d'actrice
+        if (field === 'nom' && currentItem?.isNew && currentItem?.type === 'actrice') {
+            // Debounce la vérification pour éviter trop d'appels
+            clearTimeout(window.actriceCheckTimeout);
+            window.actriceCheckTimeout = setTimeout(() => {
+                checkActriceName(value);
+            }, 500); // Attendre 500ms après la dernière frappe
+        }
     };
 
     const handleSubmit = async () => {
         try {
+            // ✅ Vérification finale avant soumission pour les nouvelles scènes
+            if (currentItem.isNew && currentItem.type === 'scene' && formData.chemin_short) {
+                // Vérification finale synchrone
+                const finalCheck = await axios.post('http://127.0.0.1:5000/api/scenes/check-path', {
+                    chemin_short: formData.chemin_short
+                });
+
+                if (finalCheck.data.exists) {
+                    showSnackbar(
+                        `Cette vidéo existe déjà : "${finalCheck.data.scene.titre}" (ID: ${finalCheck.data.scene.id})`,
+                        'error'
+                    );
+                    return;
+                }
+            }
+
+            // ✅ NOUVEAU : Vérification finale avant soumission pour les nouvelles actrices
+            if (currentItem.isNew && currentItem.type === 'actrice' && formData.nom) {
+                // Vérification finale synchrone
+                const finalCheck = await axios.post('http://127.0.0.1:5000/api/actrices/check-name', {
+                    nom: formData.nom
+                });
+
+                if (finalCheck.data.exists) {
+                    showSnackbar(
+                        `Cette actrice existe déjà : "${finalCheck.data.actrice.nom}" (ID: ${finalCheck.data.actrice.id})`,
+                        'error'
+                    );
+                    return;
+                }
+            }
+
             const url = currentItem.isNew
                 ? `http://127.0.0.1:5000/api/${currentItem.type}s`
                 : `http://127.0.0.1:5000/api/${currentItem.type}s/${currentItem.id}`;
@@ -1005,19 +1576,49 @@ export default function AdminInterface({ onBack }) {
                 delete submitData.photo_short;
             }
 
-            // Ajouter cette ligne dans handleSubmit juste avant await axios
-            console.log('submitData avant envoi:', submitData);
+            //console.log('submitData avant envoi:', submitData);
 
             await axios({ method, url, data: submitData });
 
             setOpenDialog(false);
+            // Réinitialiser l'état de vérification
+            setPathCheckState({
+                isChecking: false,
+                exists: false,
+                existingScene: null,
+                lastCheckedPath: ''
+            });
+            setActriceCheckState({
+                isChecking: false,
+                exists: false,
+                existingActrice: null,
+                lastCheckedName: ''
+            });
+
             loadData();
             showSnackbar(
                 `${currentItem.type === 'scene' ? 'Scène' : 'Actrice'} ${currentItem.isNew ? 'ajoutée' : 'modifiée'} avec succès`
             );
         } catch (error) {
             console.error('Erreur:', error);
-            showSnackbar(`Erreur lors de la sauvegarde: ${error.response?.data?.error || error.message}`, 'error');
+
+            // ✅ Gestion spéciale pour les erreurs de conflit (409)
+            if (error.response?.status === 409) {
+                const errorData = error.response.data;
+                if (errorData.existing_scene) {
+                    showSnackbar(
+                        `Scène déjà existante : "${errorData.existing_scene?.titre}" (ID: ${errorData.existing_scene?.id})`,
+                        'error'
+                    );
+                } else if (errorData.existing_actrice) {
+                    showSnackbar(
+                        `Actrice déjà existante : "${errorData.existing_actrice?.nom}" (ID: ${errorData.existing_actrice?.id})`,
+                        'error'
+                    );
+                }
+            } else {
+                showSnackbar(`Erreur lors de la sauvegarde: ${error.response?.data?.error || error.message}`, 'error');
+            }
         }
     };
 
@@ -1037,6 +1638,13 @@ export default function AdminInterface({ onBack }) {
     const addToFavorites = async (sceneId) => {
         try {
             await axios.post('http://127.0.0.1:5000/api/favorites', { scene_id: sceneId });
+
+            // ✅ Mettre à jour l'état local immédiatement
+            setFavorites(prev => [...prev, {
+                scene_id: sceneId,
+                date_ajout: new Date().toISOString().split('T')[0]
+            }]);
+
             showSnackbar('Ajouté aux favoris');
         } catch (error) {
             console.error('Erreur:', error);
@@ -1044,29 +1652,38 @@ export default function AdminInterface({ onBack }) {
         }
     };
 
+// Faire la même chose pour removeFromFavorites, addToHistory, et removeFromHistory
+
+    // Dans AdminInterface.jsx, remplacer la fonction addToHistory par :
+
     const addToHistory = async (sceneId) => {
         try {
-            // Vérifier si la scène n'est pas déjà dans l'historique
-            const existingHistory = await axios.get(`http://127.0.0.1:5000/api/history/${sceneId}`);
-            if (existingHistory.data) {
-                showSnackbar('Cette scène est déjà dans l\'historique', 'warning');
-                return;
-            }
-        } catch (error) {
-            // Si erreur 404, c'est que la scène n'est pas dans l'historique, on peut l'ajouter
-            if (error.response?.status !== 404) {
-                console.error('Erreur vérification historique:', error);
-                showSnackbar(`Erreur: ${error.response?.data?.error || error.message}`, 'error');
-                return;
-            }
-        }
-
-        try {
-            await axios.post('http://127.0.0.1:5000/api/history', {
+            const response = await axios.post('http://127.0.0.1:5000/api/history', {
                 scene_id: sceneId,
                 note_session: 4.5
             });
-            showSnackbar('Ajouté à l\'historique');
+
+            const responseData = response.data;
+
+            // ✅ NOUVEAU : Mettre à jour l'état local avec le nouveau compteur
+            if (responseData.is_new) {
+                // Nouvelle entrée dans l'historique
+                setHistory(prev => [...prev, {
+                    scene_id: sceneId,
+                    date_vue: new Date().toISOString().split('T')[0],
+                    nb_vues: 1
+                }]);
+                showSnackbar(`Première vue enregistrée ! 🆕`);
+            } else {
+                // Incrémenter le compteur existant
+                setHistory(prev => prev.map(hist =>
+                    hist.scene_id === sceneId
+                        ? { ...hist, nb_vues: responseData.nb_vues, date_vue: new Date().toISOString().split('T')[0] }
+                        : hist
+                ));
+                showSnackbar(`Vue #${responseData.nb_vues} enregistrée ! 🎬`);
+            }
+
         } catch (error) {
             console.error('Erreur:', error);
             showSnackbar(`Erreur: ${error.response?.data?.error || error.message}`, 'error');
@@ -1077,6 +1694,10 @@ export default function AdminInterface({ onBack }) {
         try {
             // L'endpoint doit probablement supprimer par scene_id, pas par id direct
             await axios.delete(`http://127.0.0.1:5000/api/favorites/scene/${sceneId}`);
+
+            // ✅ Mettre à jour l'état local immédiatement
+            setFavorites(prev => prev.filter(fav => fav.scene_id !== sceneId));
+
             showSnackbar('Supprimé des favoris');
         } catch (error) {
             console.error('Erreur:', error);
@@ -1088,6 +1709,10 @@ export default function AdminInterface({ onBack }) {
         try {
             // L'endpoint doit probablement supprimer par scene_id, pas par id direct
             await axios.delete(`http://127.0.0.1:5000/api/history/scene/${sceneId}`);
+
+            // ✅ Mettre à jour l'état local immédiatement
+            setHistory(prev => prev.filter(hist => hist.scene_id !== sceneId));
+
             showSnackbar('Supprimé de l\'historique');
         } catch (error) {
             console.error('Erreur:', error);
@@ -1117,7 +1742,8 @@ export default function AdminInterface({ onBack }) {
                     image_short: extractShortPath(sceneDetail.image, MINIATURES_PREFIX),
                     chemin_short: extractShortPath(sceneDetail.chemin, VIDEOS_PREFIX),
                     actrice_ids: sceneDetail.actrices ? sceneDetail.actrices.map(a => a.id) : [],
-                    tags: sceneDetail.tags ? sceneDetail.tags.map(t => t.nom || t) : []
+                    tags: sceneDetail.tags ? sceneDetail.tags.map(t => t.nom || t) : [],
+                    date_ajout: sceneDetail.date_ajout || ''
                 });
             } catch (error) {
                 console.error('Erreur chargement détails scène:', error);
@@ -1208,8 +1834,101 @@ export default function AdminInterface({ onBack }) {
         }
     };
 
+    const openVideoFile = async (scene) => {
+        try {
+            if (!scene.chemin) {
+                showSnackbar('Aucun chemin vidéo défini pour cette scène', 'error');
+                return;
+            }
+
+            console.log('Ouverture de:', scene.chemin);
+
+            const response = await axios.post('http://127.0.0.1:5000/api/scenes/open-video', {
+                chemin: scene.chemin,
+                scene_id: scene.id
+            });
+
+            if (response.data.success) {
+                // Notification immédiate
+                showSnackbar(`📹 "${scene.titre}" ouverte - Confirmation dans 10s ⏰`, 'success');
+
+                // Programmer la demande de confirmation dans 10 secondes
+                setTimeout(() => {
+                    console.log('📋 Affichage du dialog de confirmation pour:', scene.titre);
+                    setWatchConfirmDialog({
+                        open: true,
+                        scene: scene,
+                        openTime: Date.now()
+                    });
+                }, 10000); // 10 secondes - parfait pour usage rapide
+
+            } else {
+                throw new Error(response.data.error || 'Erreur lors de l\'ouverture');
+            }
+
+        } catch (error) {
+            console.error('Erreur ouverture vidéo:', error);
+            showSnackbar(`Erreur: ${error.response?.data?.error || error.message}`, 'error');
+        }
+    };
+
+    // Fonction pour gérer la confirmation
+    const handleWatchConfirmation = async (watched, rating = 4) => {
+        const scene = watchConfirmDialog.scene;
+
+        if (watched && scene) {
+            try {
+                const response = await axios.post('http://127.0.0.1:5000/api/history', {
+                    scene_id: scene.id,
+                    note_session: rating
+                });
+
+                const responseData = response.data;
+
+                // Mettre à jour l'état local
+                if (responseData.is_new) {
+                    setHistory(prev => [...prev, {
+                        scene_id: scene.id,
+                        date_vue: new Date().toISOString().split('T')[0],
+                        nb_vues: 1
+                    }]);
+                    showSnackbar(`🆕 Première vue enregistrée pour "${scene.titre}"!`, 'success');
+                } else {
+                    setHistory(prev => prev.map(hist =>
+                        hist.scene_id === scene.id
+                            ? { ...hist, nb_vues: responseData.nb_vues, date_vue: new Date().toISOString().split('T')[0] }
+                            : hist
+                    ));
+                    showSnackbar(`✅ Vue #${responseData.nb_vues} enregistrée pour "${scene.titre}"!`, 'success');
+                }
+
+            } catch (error) {
+                console.error('Erreur enregistrement vue:', error);
+                showSnackbar(`Erreur: ${error.response?.data?.error || error.message}`, 'error');
+            }
+        } else {
+            showSnackbar('Visionnage non comptabilisé', 'info');
+        }
+
+        // Fermer le dialog
+        setWatchConfirmDialog({
+            open: false,
+            scene: null,
+            openTime: null
+        });
+    };
+
     return (
-        <AdminContainer maxWidth="xl">
+        <AdminContainer
+            maxWidth={false} // ✅ Supprimer la limite de largeur
+            sx={{
+                pt: 0,
+                mt: 0,
+                width: '100vw', // ✅ Prendre toute la largeur
+                maxWidth: 'none', // ✅ Pas de limite
+                px: 3 // ✅ Padding horizontal
+            }}
+        >
             <MainTitle variant="h3">
                 Administration Intyma
             </MainTitle>
@@ -1241,22 +1960,87 @@ export default function AdminInterface({ onBack }) {
                     </AddButton>
                 </SectionHeader>
 
+                {/* ✅ AJOUTER ce bloc */}
+                <SceneSearchAndFilters
+                    scenes={scenes}
+                    actrices={actrices}
+                    favorites={favorites}
+                    history={history}
+                    onFilteredResults={setFilteredScenes}
+                />
+
                 <Box sx={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
+                    display: 'grid',
+                    gridTemplateColumns: {
+                        xs: 'repeat(1, 300px)',    // Mobile: 1 colonne
+                        sm: 'repeat(2, 300px)',    // Tablette: 2 colonnes
+                        md: 'repeat(3, 300px)',    // Desktop: 3 colonnes
+                        lg: 'repeat(4, 300px)',    // Large: 4 colonnes
+                        xl: 'repeat(auto-fit, 300px)' // XL: auto-adaptatif
+                    },
                     gap: 3,
-                    justifyContent: 'flex-start'
+                    justifyContent: 'start',
+                    width: '100%'
                 }}>
-                    {scenes.map((scene, index) => {
+                    {filteredScenes.map((scene, index) => {
                         const imageUrl = buildImageUrl(scene.image);
+
+                        // ✨ NOUVEAU : Générer les badges pour cette scène
+                        const favHistoryBadges = generateSceneFavHistoryBadges(scene, favorites, history);
+                        const qualityBadges = generateSceneBadges(scene, {}); // Vous pouvez passer les filtres ici
+                        const tagsBadges = generateSceneTagsBadges(scene, {}); // Vous pouvez passer les filtres ici
 
                         return (
                             <Box key={scene.id} sx={{
-                                width: '300px', // Largeur fixe pour toutes les cartes
+                                width: '300px',
                                 flexShrink: 0
                             }}>
                                 <Grow in={true} timeout={300 + index * 100}>
                                     <CompactCard onClick={() => handleCardClick(scene, 'scene')}>
+                                        {/* ✨ BADGES TOP-RIGHT : Favoris/Historique en priorité */}
+                                        <SceneBadgeContainer>
+                                            {/* Badges favoris/historique en premier */}
+                                            {favHistoryBadges.map(badge => (
+                                                <SceneBadgeWithTooltip key={badge.key} badge={badge}>
+                                                    <SceneFavHistoryBadge
+                                                        variant={badge.variant}
+                                                        label={badge.label}
+                                                        size="small"
+                                                    />
+                                                </SceneBadgeWithTooltip>
+                                            ))}
+
+                                            {/* Puis les autres badges (qualité, durée, etc.) */}
+                                            {qualityBadges.slice(0, 4 - favHistoryBadges.length).map(badge => (
+                                                <SceneInfoBadge
+                                                    key={badge.key}
+                                                    variant={badge.variant}
+                                                    label={badge.label}
+                                                    size="small"
+                                                />
+                                            ))}
+                                        </SceneBadgeContainer>
+
+                                        {/* ✨ TAGS BADGES BOTTOM */}
+                                        {tagsBadges.length > 0 && (
+                                            <SceneTagsBadgeContainer>
+                                                {tagsBadges.map(tag => (
+                                                    <SceneInfoBadge
+                                                        key={tag.key}
+                                                        variant={tag.isMatching ? 'tag' : 'default'}
+                                                        label={tag.label}
+                                                        size="small"
+                                                        sx={{
+                                                            fontSize: '0.65rem',
+                                                            height: '18px',
+                                                            opacity: tag.isMatching ? 1 : 0.8,
+                                                            transform: tag.isMatching ? 'scale(1.05)' : 'scale(1)',
+                                                        }}
+                                                    />
+                                                ))}
+                                            </SceneTagsBadgeContainer>
+                                        )}
+
                                         <CompactImageContainer
                                             sx={{
                                                 backgroundImage: imageUrl ? `url("${imageUrl}")` : 'none'
@@ -1274,32 +2058,41 @@ export default function AdminInterface({ onBack }) {
                                                 />
                                             )}
                                         </CompactImageContainer>
+
                                         <CompactCardContent>
-                                            <CompactTitle>{scene.titre || 'Sans titre'}</CompactTitle>
-                                            <CompactSubtitle>
-                                                <AccessTime sx={{ fontSize: '1rem' }} />
-                                                {scene.duree ? `${scene.duree} min` : 'Durée inconnue'}
-                                                <HighQuality sx={{ fontSize: '1rem', ml: 1 }} />
-                                                {scene.qualite}
-                                                <CalendarMonth sx={{ fontSize: '1rem', ml: 1 }} />
-                                                {scene.date_scene ? new Date(scene.date_scene).toLocaleDateString('fr-FR') : 'Date inconnue'}
-                                            </CompactSubtitle>
+                                            {/* PREMIÈRE DIV - pour le haut */}
+                                            <div>
+                                                <CompactTitle>{scene.titre || 'Sans titre'}</CompactTitle>
+                                            </div>
 
-                                            {scene.actrices && scene.actrices.length > 0 && (
+                                            {/* DEUXIÈME DIV - pour le bas */}
+                                            <div>
                                                 <CompactSubtitle>
-                                                    <Person sx={{ fontSize: '1rem' }} />
-                                                    {scene.actrices.map(actrice => actrice.nom).join(', ')}
+                                                    <AccessTime sx={{ fontSize: '1rem' }} />
+                                                    {scene.duree ? `${scene.duree} min` : 'Durée inconnue'}
+                                                    <HighQuality sx={{ fontSize: '1rem', ml: 1 }} />
+                                                    {scene.qualite}
+                                                    <CalendarMonth sx={{ fontSize: '1rem', ml: 1 }} />
+                                                    {scene.date_scene ? new Date(scene.date_scene).toLocaleDateString('fr-FR') : 'Date inconnue'}
                                                 </CompactSubtitle>
-                                            )}
 
-                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                                {scene.site && (
-                                                    <StyledChip label={scene.site} size="small" />
+                                                {scene.actrices && scene.actrices.length > 0 && (
+                                                    <CompactSubtitle>
+                                                        <Person sx={{ fontSize: '1rem' }} />
+                                                        {scene.actrices.map(actrice => actrice.nom).join(', ')}
+                                                    </CompactSubtitle>
                                                 )}
-                                                {scene.studio && (
-                                                    <StyledChip label={scene.studio} size="small" />
-                                                )}
-                                            </Box>
+
+                                                {/* Tags site/studio */}
+                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+                                                    {scene.site && (
+                                                        <StyledChip label={scene.site} size="small" />
+                                                    )}
+                                                    {scene.studio && (
+                                                        <StyledChip label={scene.studio} size="small" />
+                                                    )}
+                                                </Box>
+                                            </div>
                                         </CompactCardContent>
                                     </CompactCard>
                                 </Grow>
@@ -1324,16 +2117,40 @@ export default function AdminInterface({ onBack }) {
                     </AddButton>
                 </SectionHeader>
 
+                {/* ✅ Filtres pour actrices */}
+                {actrices.length > 0 && scenes.length > 0 && (
+                    <ActriceSearchAndFilters
+                        actrices={actrices}
+                        scenes={scenes}
+                        favorites={favorites}
+                        history={history}
+                        onFilteredResults={setFilteredActrices}
+                    />
+
+                )}
+
                 <Box sx={{
                     display: 'flex',
                     flexWrap: 'wrap',
                     gap: 3,
                     justifyContent: 'flex-start'
                 }}>
-                    {actrices.map((actrice, index) => {
+                    {filteredActrices.map((actrice, index) => {
                         const imageUrl = buildImageUrl(actrice.photo, 'actrice');
                         const age = calculateAge(actrice.date_naissance);
                         const sceneCount = countScenesByActrice(actrice.id);
+
+                        // ✨ NOUVEAU : Générer les badges de qualité existants
+                        const topBadges = generateActriceBadges(actrice, {}, scenes);
+
+                        // ✨ NOUVEAU : Générer les badges favoris/historique
+                        const favHistoryBadges = generateActriceFavHistoryBadges(actrice, scenes, favorites, history);
+
+                        // ✨ NOUVEAU : Générer les tags badges (sans filtres pour l'instant)
+                        const tagsBadges = generateTagsBadges(actrice, {});
+
+                        // ✨ NOUVEAU : Calculer les stats pour l'affichage
+                        const stats = calculateActriceStats(actrice, scenes, favorites, history);
 
                         return (
                             <Box key={actrice.id} sx={{
@@ -1342,6 +2159,50 @@ export default function AdminInterface({ onBack }) {
                             }}>
                                 <Grow in={true} timeout={300 + index * 100}>
                                     <CompactCard onClick={() => handleCardClick(actrice, 'actrice')}>
+                                        {/* ✨ BADGES TOP-RIGHT : Favoris/Historique en priorité */}
+                                        <BadgeContainer>
+                                            {/* Badges favoris/historique en premier */}
+                                            {favHistoryBadges.map(badge => (
+                                                <BadgeWithTooltip key={badge.key} badge={badge}>
+                                                    <FavHistoryBadge
+                                                        variant={badge.variant}
+                                                        label={badge.label}
+                                                        size="small"
+                                                    />
+                                                </BadgeWithTooltip>
+                                            ))}
+
+                                            {/* Puis les autres badges (note, activité, etc.) */}
+                                            {topBadges.slice(0, 4 - favHistoryBadges.length).map(badge => (
+                                                <InfoBadge
+                                                    key={badge.key}
+                                                    variant={badge.variant}
+                                                    label={badge.label}
+                                                    size="small"
+                                                />
+                                            ))}
+                                        </BadgeContainer>
+
+                                        {/* ✨ TAGS BADGES BOTTOM */}
+                                        {tagsBadges.length > 0 && (
+                                            <TagsBadgeContainer>
+                                                {tagsBadges.map(tag => (
+                                                    <InfoBadge
+                                                        key={tag.key}
+                                                        variant={tag.isMatching ? 'tag' : 'default'}
+                                                        label={tag.label}
+                                                        size="small"
+                                                        sx={{
+                                                            fontSize: '0.65rem',
+                                                            height: '18px',
+                                                            opacity: tag.isMatching ? 1 : 0.8,
+                                                            transform: tag.isMatching ? 'scale(1.05)' : 'scale(1)',
+                                                        }}
+                                                    />
+                                                ))}
+                                            </TagsBadgeContainer>
+                                        )}
+
                                         <CompactImageContainer
                                             sx={{
                                                 backgroundImage: imageUrl ? `url("${imageUrl}")` : 'none'
@@ -1359,6 +2220,7 @@ export default function AdminInterface({ onBack }) {
                                                 />
                                             )}
                                         </CompactImageContainer>
+
                                         <CompactCardContent>
                                             <CompactTitle>{actrice.nom}</CompactTitle>
                                             <CompactSubtitle>
@@ -1372,6 +2234,23 @@ export default function AdminInterface({ onBack }) {
                                             </CompactSubtitle>
                                             <CompactSubtitle>
                                                 🎬 {sceneCount} scène{sceneCount !== 1 ? 's' : ''}
+                                                {/* ✨ NOUVEAU : Afficher les stats si pertinentes */}
+                                                {(stats.favoritesCount > 0 || stats.historyCount > 0) && (
+                                                    <>
+                                                        {' • '}
+                                                        {stats.favoritesCount > 0 && (
+                                                            <span style={{ color: '#FF6B9D' }}>
+                                            ❤️ {stats.favoritesCount}
+                                        </span>
+                                                        )}
+                                                        {stats.favoritesCount > 0 && stats.historyCount > 0 && ' '}
+                                                        {stats.historyCount > 0 && (
+                                                            <span style={{ color: '#4CAF50' }}>
+                                            👁️ {stats.historyCount}
+                                        </span>
+                                                        )}
+                                                    </>
+                                                )}
                                             </CompactSubtitle>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                 <Star sx={{ color: '#DAA520', fontSize: '1rem' }} />
@@ -1550,7 +2429,7 @@ export default function AdminInterface({ onBack }) {
                                         }}
                                     />
                                 </Grid>
-                                <Grid size={4}>
+                                <Grid size={6}>
                                     <StyledTextField
                                         label="Date de la scène"
                                         type="date"
@@ -1558,6 +2437,17 @@ export default function AdminInterface({ onBack }) {
                                         value={formData.date_scene || ''}
                                         onChange={(e) => handleInputChange('date_scene', e.target.value)}
                                         InputLabelProps={{ shrink: true }}
+                                    />
+                                </Grid>
+                                <Grid size={6}>
+                                    <StyledTextField
+                                        label="Date d'ajout"
+                                        type="date"
+                                        fullWidth
+                                        value={formData.date_ajout || ''}
+                                        onChange={(e) => handleInputChange('date_ajout', e.target.value)}
+                                        InputLabelProps={{ shrink: true }}
+                                        helperText="Laissez vide pour utiliser la date actuelle"
                                     />
                                 </Grid>
 
@@ -1591,28 +2481,46 @@ export default function AdminInterface({ onBack }) {
                                     />
                                 </Grid>
 
-                                {/* Ligne 9 : Chemin du fichier */}
+                                {/* Ligne 9 : Chemin du fichier - NOUVELLE VERSION */}
                                 <Grid size={12}>
-                                    <StyledTextField
-                                        label="Vidéo (ActriceName/filename.mp4)"
-                                        fullWidth
-                                        value={formData.chemin_short || ''}
-                                        onChange={(e) => handleInputChange('chemin_short', e.target.value)}
-                                        placeholder="ex: Alexa Payne/scene.mp4"
-                                        helperText="Format: Nom de l'actrice/nom du fichier. Sera automatiquement préfixé par '/Volumes/My Passport for Mac/Privé/M364TR0N/'"
-                                    />
+                                    {currentItem?.isNew ? (
+                                        <ValidatedVideoPathField
+                                            value={formData.chemin_short}
+                                            onChange={handleInputChange}
+                                            isNew={currentItem.isNew}
+                                            pathCheckState={pathCheckState}
+                                        />
+                                    ) : (
+                                        <StyledTextField
+                                            label="Vidéo (ActriceName/filename.mp4)"
+                                            fullWidth
+                                            value={formData.chemin_short || ''}
+                                            onChange={(e) => handleInputChange('chemin_short', e.target.value)}
+                                            placeholder="ex: Alexa Payne/scene.mp4"
+                                            helperText="Format: Nom de l'actrice/nom du fichier. Sera automatiquement préfixé par '/Volumes/My Passport for Mac/Privé/M364TR0N/'"
+                                        />
+                                    )}
                                 </Grid>
                             </Grid>
                         ) : (
                             // Le reste pour les actrices...
                             <Grid container spacing={2}>
                                 <Grid size={12}>
-                                    <StyledTextField
-                                        label="Nom"
-                                        fullWidth
-                                        value={formData.nom || ''}
-                                        onChange={(e) => handleInputChange('nom', e.target.value)}
-                                    />
+                                    {currentItem?.isNew ? (
+                                        <ValidatedActriceNameField
+                                            value={formData.nom}
+                                            onChange={handleInputChange}
+                                            isNew={currentItem.isNew}
+                                            actriceCheckState={actriceCheckState}
+                                        />
+                                    ) : (
+                                        <StyledTextField
+                                            label="Nom"
+                                            fullWidth
+                                            value={formData.nom || ''}
+                                            onChange={(e) => handleInputChange('nom', e.target.value)}
+                                        />
+                                    )}
                                 </Grid>
                                 <Grid size={12}>
                                     <StyledTextField
@@ -1683,7 +2591,24 @@ export default function AdminInterface({ onBack }) {
                     >
                         Annuler
                     </Button>
-                    <AddButton onClick={handleSubmit} sx={{ ml: 2 }}>
+                    <AddButton
+                        onClick={handleSubmit}
+                        sx={{
+                            ml: 2,
+                            opacity: (
+                                (currentItem?.isNew && currentItem?.type === 'scene' &&
+                                    (pathCheckState.exists || pathCheckState.isChecking)) ||
+                                (currentItem?.isNew && currentItem?.type === 'actrice' &&
+                                    (actriceCheckState.exists || actriceCheckState.isChecking))
+                            ) ? 0.5 : 1
+                        }}
+                        disabled={
+                            (currentItem?.isNew && currentItem?.type === 'scene' &&
+                                (pathCheckState.exists || pathCheckState.isChecking)) ||
+                            (currentItem?.isNew && currentItem?.type === 'actrice' &&
+                                (actriceCheckState.exists || actriceCheckState.isChecking))
+                        }
+                    >
                         {currentItem?.isNew ? 'Ajouter' : 'Modifier'}
                     </AddButton>
                 </DialogActions>
@@ -1911,8 +2836,8 @@ export default function AdminInterface({ onBack }) {
                                                 )}
                                             </Grid>
 
-                                            {/* Ligne 4 : Note personnelle (avec sélecteur d'étoiles) */}
-                                            <Grid size={12}>
+                                            {/* Ligne 4 : Note personnelle - taille conditionnelle */}
+                                            <Grid size={isFavorite(selectedItem.id) || isInHistory(selectedItem.id) ? 6 : 12}>
                                                 <Typography variant="subtitle1" sx={{ color: '#B8860B', mb: 1 }}>
                                                     Note personnelle
                                                 </Typography>
@@ -1961,6 +2886,39 @@ export default function AdminInterface({ onBack }) {
                                                     </Box>
                                                 )}
                                             </Grid>
+
+                                            {/* Statut - AFFICHÉ SEULEMENT s'il y a favoris OU historique */}
+                                            {(isFavorite(selectedItem.id) || isInHistory(selectedItem.id)) && (
+                                                <Grid size={6}>
+                                                    <Typography variant="subtitle1" sx={{ color: '#B8860B', mb: 1 }}>
+                                                        Statut
+                                                    </Typography>
+                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                        {isFavorite(selectedItem.id) && (
+                                                            <StyledChip
+                                                                label="❤️ En favoris"
+                                                                size="small"
+                                                                sx={{
+                                                                    background: 'linear-gradient(135deg, rgba(255, 107, 157, 0.3), rgba(255, 87, 34, 0.3))',
+                                                                    color: '#FF6B9D',
+                                                                    border: '1px solid rgba(255, 107, 157, 0.5)'
+                                                                }}
+                                                            />
+                                                        )}
+                                                        {isInHistory(selectedItem.id) && (
+                                                            <StyledChip
+                                                                label="👁️ Déjà vue"
+                                                                size="small"
+                                                                sx={{
+                                                                    background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.3), rgba(56, 142, 60, 0.3))',
+                                                                    color: '#4CAF50',
+                                                                    border: '1px solid rgba(76, 175, 80, 0.5)'
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </Box>
+                                                </Grid>
+                                            )}
 
                                             {/* Ligne 5 : Tags */}
                                             <Grid size={12}>
@@ -2101,7 +3059,8 @@ export default function AdminInterface({ onBack }) {
                                                 )}
                                             </Grid>
 
-                                            <Grid size={4}>
+                                            {/* Date de la scène */}
+                                            <Grid size={6}>
                                                 <Typography variant="subtitle1" sx={{ color: '#B8860B', mb: 1 }}>
                                                     Date de la scène
                                                 </Typography>
@@ -2124,6 +3083,34 @@ export default function AdminInterface({ onBack }) {
                                                 ) : (
                                                     <Typography variant="body1" sx={{ color: '#fff' }}>
                                                         📅 {selectedItem.date_scene ? new Date(selectedItem.date_scene).toLocaleDateString('fr-FR') : 'Date inconnue'}
+                                                    </Typography>
+                                                )}
+                                            </Grid>
+
+                                            {/* Date d'ajout */}
+                                            <Grid size={6}>
+                                                <Typography variant="subtitle1" sx={{ color: '#B8860B', mb: 1 }}>
+                                                    Date d'ajout
+                                                </Typography>
+                                                {editMode ? (
+                                                    <StyledTextField
+                                                        type="date"
+                                                        fullWidth
+                                                        size="small"
+                                                        value={formData.date_ajout || ''}
+                                                        onChange={(e) => handleInputChange('date_ajout', e.target.value)}
+                                                        InputLabelProps={{ shrink: true }}
+                                                        sx={{
+                                                            '& .MuiInputBase-root': {
+                                                                minHeight: '48px',
+                                                                fontSize: '0.95rem',
+                                                                padding: '12px 16px'
+                                                            }
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <Typography variant="body1" sx={{ color: '#fff' }}>
+                                                        📥 {selectedItem.date_ajout ? new Date(selectedItem.date_ajout).toLocaleDateString('fr-FR') : 'Date inconnue'}
                                                     </Typography>
                                                 )}
                                             </Grid>
@@ -2514,6 +3501,7 @@ export default function AdminInterface({ onBack }) {
                                                 <>
                                                     <Button
                                                         startIcon={<PlayArrow />}
+                                                        onClick={() => openVideoFile(selectedItem)}
                                                         sx={{
                                                             background: 'linear-gradient(135deg, #4CAF50, #45A049)',
                                                             color: '#fff',
@@ -2525,40 +3513,47 @@ export default function AdminInterface({ onBack }) {
                                                             }
                                                         }}
                                                     >
-                                                        Lire la vidéo
+                                                        📹 Lire la vidéo
                                                     </Button>
-                                                    <Button
-                                                        startIcon={<Favorite />}
-                                                        onClick={() => addToFavorites(selectedItem.id)}
-                                                        sx={{
-                                                            background: 'linear-gradient(135deg, #FF6B9D, #FF5722)',
-                                                            color: '#fff',
-                                                            fontWeight: 600,
-                                                            px: 3,
-                                                            '&:hover': {
-                                                                background: 'linear-gradient(135deg, #FF7BAD, #FF6B9D)',
-                                                                transform: 'translateY(-1px)'
-                                                            }
-                                                        }}
-                                                    >
-                                                        Ajouter aux favoris
-                                                    </Button>
-                                                    <Button
-                                                        startIcon={<Delete />}
-                                                        onClick={() => removeFromFavorites(selectedItem.id)}
-                                                        sx={{
-                                                            background: 'linear-gradient(135deg, #FF8A80, #F44336)',
-                                                            color: '#fff',
-                                                            fontWeight: 600,
-                                                            px: 3,
-                                                            '&:hover': {
-                                                                background: 'linear-gradient(135deg, #FFAB91, #FF8A80)',
-                                                                transform: 'translateY(-1px)'
-                                                            }
-                                                        }}
-                                                    >
-                                                        Supprimer des favoris
-                                                    </Button>
+
+                                                    {/* Boutons Favoris - affichage conditionnel */}
+                                                    {!isFavorite(selectedItem.id) ? (
+                                                        <Button
+                                                            startIcon={<Favorite />}
+                                                            onClick={() => addToFavorites(selectedItem.id)}
+                                                            sx={{
+                                                                background: 'linear-gradient(135deg, #FF6B9D, #FF5722)',
+                                                                color: '#fff',
+                                                                fontWeight: 600,
+                                                                px: 3,
+                                                                '&:hover': {
+                                                                    background: 'linear-gradient(135deg, #FF7BAD, #FF6B9D)',
+                                                                    transform: 'translateY(-1px)'
+                                                                }
+                                                            }}
+                                                        >
+                                                            Ajouter aux favoris
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            startIcon={<Delete />}
+                                                            onClick={() => removeFromFavorites(selectedItem.id)}
+                                                            sx={{
+                                                                background: 'linear-gradient(135deg, #FF8A80, #F44336)',
+                                                                color: '#fff',
+                                                                fontWeight: 600,
+                                                                px: 3,
+                                                                '&:hover': {
+                                                                    background: 'linear-gradient(135deg, #FFAB91, #FF8A80)',
+                                                                    transform: 'translateY(-1px)'
+                                                                }
+                                                            }}
+                                                        >
+                                                            Supprimer des favoris
+                                                        </Button>
+                                                    )}
+
+                                                    {/* ✅ NOUVEAU : Toujours afficher "Marquer comme vue" + compteur */}
                                                     <Button
                                                         startIcon={<Visibility />}
                                                         onClick={() => addToHistory(selectedItem.id)}
@@ -2573,24 +3568,31 @@ export default function AdminInterface({ onBack }) {
                                                             }
                                                         }}
                                                     >
-                                                        Marquer comme vue
+                                                        {isInHistory(selectedItem.id) ?
+                                                            `👁️ Revoir (Vue ${getViewCount(selectedItem.id) || 1} fois)` :
+                                                            '👁️ Marquer comme vue'
+                                                        }
                                                     </Button>
-                                                    <Button
-                                                        startIcon={<Delete />}
-                                                        onClick={() => removeFromHistory(selectedItem.id)}
-                                                        sx={{
-                                                            background: 'linear-gradient(135deg, #90CAF9, #2196F3)',
-                                                            color: '#fff',
-                                                            fontWeight: 600,
-                                                            px: 3,
-                                                            '&:hover': {
-                                                                background: 'linear-gradient(135deg, #BBDEFB, #90CAF9)',
-                                                                transform: 'translateY(-1px)'
-                                                            }
-                                                        }}
-                                                    >
-                                                        Supprimer de l'historique
-                                                    </Button>
+
+                                                    {/* ✅ NOUVEAU : Bouton séparé pour supprimer de l'historique (seulement si dans l'historique) */}
+                                                    {isInHistory(selectedItem.id) && (
+                                                        <Button
+                                                            startIcon={<Delete />}
+                                                            onClick={() => removeFromHistory(selectedItem.id)}
+                                                            sx={{
+                                                                background: 'linear-gradient(135deg, #90CAF9, #2196F3)',
+                                                                color: '#fff',
+                                                                fontWeight: 600,
+                                                                px: 3,
+                                                                '&:hover': {
+                                                                    background: 'linear-gradient(135deg, #BBDEFB, #90CAF9)',
+                                                                    transform: 'translateY(-1px)'
+                                                                }
+                                                            }}
+                                                        >
+                                                            Supprimer de l'historique
+                                                        </Button>
+                                                    )}
                                                 </>
                                             )}
                                             <Button
@@ -2622,6 +3624,12 @@ export default function AdminInterface({ onBack }) {
                     </DetailModalContent>
                 </Fade>
             </DetailModal>
+
+            {/* Dialog de confirmation de visionnage amélioré */}
+            <EnhancedWatchConfirmationDialog
+                watchConfirmDialog={watchConfirmDialog}
+                handleWatchConfirmation={handleWatchConfirmation}
+            />
 
             <Snackbar
                 open={snackbar.open}
