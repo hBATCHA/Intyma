@@ -89,7 +89,10 @@ class History(db.Model):
     __tablename__ = 'history'
     id = db.Column(db.Integer, primary_key=True)
     scene_id = db.Column(db.Integer, db.ForeignKey('scenes.id'), nullable=False)
-    date_vue = db.Column(db.Date)
+    date_vue = db.Column(db.Date)  # Garder pour compatibilité (= dernière vue)
+    date_premiere_vue = db.Column(db.Date)  # ✅ NOUVEAU : Première fois vue
+    nb_vues = db.Column(db.Integer, default=1)  # ✅ NOUVEAU : Compteur de vues
+    derniere_vue = db.Column(db.Date)  # ✅ NOUVEAU : Dernière fois vue
     note_session = db.Column(db.Float)
     commentaire_session = db.Column(db.Text)
 

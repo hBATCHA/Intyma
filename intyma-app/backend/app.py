@@ -8,6 +8,8 @@ import re
 import os
 from urllib.parse import quote
 from werkzeug.utils import secure_filename
+import subprocess
+import platform
 
 
 app = Flask(__name__)
@@ -17,6 +19,8 @@ CORS(app)  # Autorise les requêtes du frontend React
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'intyma.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+VIDEOS_PREFIX = '/Volumes/My Passport for Mac/Privé/M364TR0N/'
 
 # Lier l'app Flask à SQLAlchemy
 db.init_app(app)
@@ -54,8 +58,8 @@ def get_scenes():
             "date_scene": s.date_scene.isoformat() if s.date_scene else None,
             "image": s.image,
             "niveau_plaisir": s.niveau_plaisir,
-            "actrices": actrices_data,  # ← AJOUTER CETTE LIGNE
-            # Ajoute d'autres champs au besoin
+            "actrices": actrices_data,
+            "tags": [{"id": t.id, "nom": t.nom} for t in s.tags],
         })
     return jsonify(result)
 
@@ -980,6 +984,23 @@ def create_scene():
         print(f"=== CREATE SCENE DEBUG ===")
         print(f"Données reçues: {data}")
 
+        # ✅ NOUVEAU : Vérification d'unicité par chemin
+        chemin_complet = data.get('chemin')
+        if not chemin_complet and data.get('chemin_short'):
+            chemin_complet = '/Volumes/My Passport for Mac/Privé/M364TR0N/' + data['chemin_short']
+
+        if chemin_complet:
+            existing_scene = Scene.query.filter_by(chemin=chemin_complet).first()
+            if existing_scene:
+                return jsonify({
+                    "error": f"Une scène avec ce chemin vidéo existe déjà : '{existing_scene.titre}' (ID: {existing_scene.id})",
+                    "existing_scene": {
+                        "id": existing_scene.id,
+                        "titre": existing_scene.titre,
+                        "chemin": existing_scene.chemin
+                    }
+                }), 409  # 409 = Conflict
+
         scene = Scene(
             chemin=data['chemin'],
             titre=data.get('titre'),
@@ -988,7 +1009,7 @@ def create_scene():
             qualite=data.get('qualite'),
             site=data.get('site'),
             studio=data.get('studio'),
-            date_ajout=datetime.now().date(),
+            date_ajout=datetime.strptime(data['date_ajout'], '%Y-%m-%d').date() if data.get('date_ajout') else datetime.now().date(),
             note_perso=data.get('note_perso'),
             image=data.get('image')
         )
@@ -1066,6 +1087,77 @@ def create_scene():
         return jsonify({"error": str(e)}), 400
 
 
+# ✅ NOUVELLE ROUTE : Vérifier si un chemin existe déjà
+@app.route('/api/scenes/check-path', methods=['POST'])
+def check_scene_path():
+    """Vérifier si un chemin de scène existe déjà"""
+    try:
+        data = request.get_json()
+        chemin_short = data.get('chemin_short', '').strip()
+
+        if not chemin_short:
+            return jsonify({"exists": False}), 200
+
+        # Construire le chemin complet
+        chemin_complet = '/Volumes/My Passport for Mac/Privé/M364TR0N/' + chemin_short
+
+        # Vérifier si une scène avec ce chemin existe
+        existing_scene = Scene.query.filter_by(chemin=chemin_complet).first()
+
+        if existing_scene:
+            return jsonify({
+                "exists": True,
+                "scene": {
+                    "id": existing_scene.id,
+                    "titre": existing_scene.titre,
+                    "chemin": existing_scene.chemin,
+                    "date_ajout": existing_scene.date_ajout.isoformat() if existing_scene.date_ajout else None
+                }
+            }), 200
+        else:
+            return jsonify({"exists": False}), 200
+
+    except Exception as e:
+        print(f"❌ Erreur check_scene_path: {e}")
+        return jsonify({"error": str(e)}), 400
+
+
+# ✅ NOUVELLE ROUTE : Vérifier si une actrice existe déjà
+@app.route('/api/actrices/check-name', methods=['POST'])
+def check_actrice_name():
+    """Vérifier si une actrice avec ce nom existe déjà"""
+    try:
+        data = request.get_json()
+        nom_actrice = data.get('nom', '').strip()
+
+        if not nom_actrice:
+            return jsonify({"exists": False}), 200
+
+        # Vérifier si une actrice avec ce nom existe (insensible à la casse)
+        existing_actrice = Actrice.query.filter(
+            db.func.lower(Actrice.nom) == nom_actrice.lower()
+        ).first()
+
+        if existing_actrice:
+            return jsonify({
+                "exists": True,
+                "actrice": {
+                    "id": existing_actrice.id,
+                    "nom": existing_actrice.nom,
+                    "photo": existing_actrice.photo,
+                    "nationalite": existing_actrice.nationalite,
+                    "nb_scenes": len(existing_actrice.scenes) if existing_actrice.scenes else 0,
+                    "note_moyenne": existing_actrice.note_moyenne
+                }
+            }), 200
+        else:
+            return jsonify({"exists": False}), 200
+
+    except Exception as e:
+        print(f"❌ Erreur check_actrice_name: {e}")
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route('/api/scenes/<int:scene_id>', methods=['PUT'])
 def update_scene(scene_id):
     """Mettre à jour une scène"""
@@ -1123,6 +1215,13 @@ def update_scene(scene_id):
         if 'date_scene' in data and data['date_scene']:
             try:
                 scene.date_scene = datetime.strptime(data['date_scene'], '%Y-%m-%d').date()
+            except:
+                pass
+
+        # Gérer la date_ajout si fournie
+        if 'date_ajout' in data and data['date_ajout']:
+            try:
+                scene.date_ajout = datetime.strptime(data['date_ajout'], '%Y-%m-%d').date()
             except:
                 pass
 
@@ -1190,9 +1289,26 @@ def delete_scene(scene_id):
 
 @app.route('/api/actrices', methods=['POST'])
 def create_actrice():
-    """Créer une nouvelle actrice"""
+    """Créer une nouvelle actrice avec vérification d'unicité"""
     try:
         data = request.get_json()
+        print(f"=== CREATE ACTRICE DEBUG ===")
+        print(f"Données reçues: {data}")
+
+        # ✅ NOUVEAU : Vérification d'unicité par nom
+        nom_actrice = data.get('nom', '').strip()
+        if nom_actrice:
+            existing_actrice = Actrice.query.filter_by(nom=nom_actrice).first()
+            if existing_actrice:
+                return jsonify({
+                    "error": f"Une actrice avec ce nom existe déjà : '{existing_actrice.nom}' (ID: {existing_actrice.id})",
+                    "existing_actrice": {
+                        "id": existing_actrice.id,
+                        "nom": existing_actrice.nom,
+                        "photo": existing_actrice.photo,
+                        "nationalite": existing_actrice.nationalite
+                    }
+                }), 409  # 409 = Conflict
 
         actrice = Actrice(
             nom=data['nom'],
@@ -1214,9 +1330,11 @@ def create_actrice():
         db.session.add(actrice)
         db.session.commit()
 
+        print(f"✅ Actrice créée avec succès: {actrice.nom} (ID: {actrice.id})")
         return jsonify({"message": "Actrice créée avec succès", "id": actrice.id}), 201
 
     except Exception as e:
+        print(f"❌ Erreur create_actrice: {e}")
         db.session.rollback()
         return jsonify({"error": str(e)}), 400
 
@@ -1330,7 +1448,7 @@ def remove_favorite(scene_id):
 
 @app.route('/api/history', methods=['POST'])
 def add_to_history():
-    """Ajouter une vue à l'historique avec gestion des doublons"""
+    """Ajouter une vue à l'historique avec gestion des vues multiples"""
     try:
         data = request.get_json()
         scene_id = data['scene_id']
@@ -1342,21 +1460,36 @@ def add_to_history():
 
         # Vérifier si déjà dans l'historique
         existing_history = History.query.filter_by(scene_id=scene_id).first()
+        today = datetime.now().date()
+
         if existing_history:
-            # Mettre à jour la date de dernière vue
-            existing_history.date_vue = datetime.now().date()
+            # ✅ NOUVEAU : Incrémenter le compteur
+            existing_history.nb_vues += 1
+            existing_history.derniere_vue = today
+            existing_history.date_vue = today  # Garder pour compatibilité
+
             if 'note_session' in data:
                 existing_history.note_session = data['note_session']
             if 'commentaire_session' in data:
                 existing_history.commentaire_session = data['commentaire_session']
 
             db.session.commit()
-            return jsonify({"message": "Historique mis à jour"}), 200
 
-        # Créer nouvelle entrée
+            print(f"🎬 Scène '{scene.titre}' vue #{existing_history.nb_vues}")
+
+            return jsonify({
+                "message": f"Vue #{existing_history.nb_vues} enregistrée",
+                "nb_vues": existing_history.nb_vues,
+                "is_new": False
+            }), 200
+
+        # Créer nouvelle entrée (première vue)
         history = History(
             scene_id=scene_id,
-            date_vue=datetime.now().date(),
+            date_vue=today,
+            date_premiere_vue=today,
+            derniere_vue=today,
+            nb_vues=1,
             note_session=data.get('note_session'),
             commentaire_session=data.get('commentaire_session')
         )
@@ -1364,7 +1497,13 @@ def add_to_history():
         db.session.add(history)
         db.session.commit()
 
-        return jsonify({"message": "Ajouté à l'historique"}), 201
+        print(f"🆕 Première vue de la scène '{scene.titre}'")
+
+        return jsonify({
+            "message": "Première vue enregistrée",
+            "nb_vues": 1,
+            "is_new": True
+        }), 201
 
     except Exception as e:
         db.session.rollback()
@@ -1539,6 +1678,75 @@ def update_all_actress_tags():
     except Exception as e:
         print(f"❌ Erreur update_all_actress_tags: {e}")
         return jsonify({"error": str(e), "success": False}), 400
+
+
+import subprocess
+import platform
+
+
+@app.route('/api/scenes/open-video', methods=['POST'])
+def open_video():
+    """Ouvrir une vidéo avec l'application par défaut du système"""
+    try:
+        data = request.get_json()
+        chemin = data.get('chemin')
+        scene_id = data.get('scene_id')
+        player_bundle = data.get('player_bundle')
+
+        if not chemin:
+            return jsonify({"error": "Chemin vidéo manquant", "success": False}), 400
+
+        # Vérifier que le fichier existe
+        if not os.path.exists(chemin):
+            return jsonify({
+                "error": f"Fichier non trouvé: {chemin}",
+                "success": False
+            }), 404
+
+        # Détecter l'OS et utiliser la commande appropriée
+        system = platform.system()
+
+        try:
+            if system == "Darwin":  # macOS
+                if player_bundle:
+                    # Ouvrir avec une app spécifique
+                    subprocess.run(["open", "-b", player_bundle, chemin], check=True)
+                else:
+                    # Ouvrir avec l'app par défaut
+                    subprocess.run(["open", chemin], check=True)
+
+            elif system == "Windows":
+                os.startfile(chemin)
+
+            elif system == "Linux":
+                subprocess.run(["xdg-open", chemin], check=True)
+
+            else:
+                return jsonify({
+                    "error": f"Système non supporté: {system}",
+                    "success": False
+                }), 400
+
+            print(f"✅ Vidéo ouverte avec succès: {chemin}")
+
+            return jsonify({
+                "success": True,
+                "message": f"Vidéo ouverte avec succès",
+                "system": system
+            })
+
+        except subprocess.CalledProcessError as e:
+            return jsonify({
+                "error": f"Erreur lors de l'ouverture: {str(e)}",
+                "success": False
+            }), 500
+
+    except Exception as e:
+        print(f"❌ Erreur open_video: {e}")
+        return jsonify({
+            "error": str(e),
+            "success": False
+        }), 400
 
 if __name__ == '__main__':
     with app.app_context():
