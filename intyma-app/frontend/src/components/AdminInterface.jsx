@@ -50,11 +50,13 @@ import {
     CalendarToday, CalendarMonth, ArrowBack,
     CheckCircle as CheckCircleIcon,
     Error as ErrorIcon,
+    Analytics
 } from '@mui/icons-material';
 import { styled, keyframes } from '@mui/material/styles';
 import axios from 'axios';
 import SceneSearchAndFilters from './SceneSearchAndFilters.jsx';
 import ActriceSearchAndFilters from './ActriceSearchAndFilters';
+import SyncDashboard from './SyncDashboard.jsx';
 import {
     calculateActriceStats,
     generateActriceFavHistoryBadges,
@@ -1019,8 +1021,17 @@ export default function AdminInterface({ onBack }) {
     const PHOTOS_PREFIX = '/Volumes/My Passport for Mac/Intyma/images/';
 
     const extractShortPath = (fullPath, prefix) => {
-        if (!fullPath) return '';
-        return fullPath.startsWith(prefix) ? fullPath.substring(prefix.length) : fullPath;
+        console.log('🔍 extractShortPath - fullPath:', fullPath);
+        console.log('🔍 extractShortPath - prefix:', prefix);
+
+        if (!fullPath) {
+            console.log('🔍 extractShortPath - pas de fullPath, retour vide');
+            return '';
+        }
+
+        const result = fullPath.startsWith(prefix) ? fullPath.substring(prefix.length) : fullPath;
+        console.log('🔍 extractShortPath - résultat:', result);
+        return result;
     };
 
     const calculateAge = (birthDate) => {
@@ -1725,41 +1736,87 @@ export default function AdminInterface({ onBack }) {
     };
 
     const handleCardClick = async (item, type) => {
+        console.log('🖱️ DÉBUT handleCardClick');
+        console.log('🖱️ Item cliqué:', item);
+        console.log('🖱️ Type:', type);
+
         setSelectedItem({ ...item, type });
         setEditMode(false);
         setDetailModalOpen(true);
+        console.log('🖱️ Modal ouvert, editMode = false');
 
-        // Si c'est une scène, récupérer les détails complets
+        // ✅ TOUJOURS récupérer les données fraîches du serveur
         if (type === 'scene') {
             try {
+                console.log('🎬 Récupération détails scène ID:', item.id);
+
                 const response = await axios.get(`http://127.0.0.1:5000/api/scenes/${item.id}`);
                 const sceneDetail = response.data;
+                console.log('📥 Détails scène reçus:', sceneDetail);
 
-                // Mettre à jour selectedItem avec les détails complets
-                setSelectedItem({ ...sceneDetail, type: 'scene' });
-                setFormData({
+                // ✅ Mettre à jour BOTH selectedItem ET formData avec les données fraîches
+                const newSelectedItem = { ...sceneDetail, type: 'scene' };
+                const newFormData = {
                     ...sceneDetail,
                     image_short: extractShortPath(sceneDetail.image, MINIATURES_PREFIX),
                     chemin_short: extractShortPath(sceneDetail.chemin, VIDEOS_PREFIX),
                     actrice_ids: sceneDetail.actrices ? sceneDetail.actrices.map(a => a.id) : [],
                     tags: sceneDetail.tags ? sceneDetail.tags.map(t => t.nom || t) : [],
                     date_ajout: sceneDetail.date_ajout || ''
-                });
+                };
+
+                console.log('🔄 selectedItem mis à jour:', newSelectedItem);
+                console.log('🔄 formData mis à jour:', newFormData);
+                console.log('🔍 sceneDetail.chemin:', sceneDetail.chemin);
+                console.log('🔍 VIDEOS_PREFIX:', VIDEOS_PREFIX);
+                console.log('🔍 chemin_short calculé:', newFormData.chemin_short);
+
+                setSelectedItem(newSelectedItem);
+                setFormData(newFormData);
+
             } catch (error) {
-                console.error('Erreur chargement détails scène:', error);
+                console.error('❌ Erreur chargement détails scène:', error);
                 // Fallback sur les données de base
-                setFormData({
+                const fallbackFormData = {
                     ...item,
                     actrice_ids: [],
                     tags: []
-                });
+                };
+                console.log('🔄 Fallback formData:', fallbackFormData);
+                setFormData(fallbackFormData);
             }
         } else {
-            setFormData({
-                ...item,
-                photo_short: extractShortPath(item.photo, PHOTOS_PREFIX)
-            });
+            try {
+                console.log('👤 Récupération détails actrice ID:', item.id);
+
+                const response = await axios.get(`http://127.0.0.1:5000/api/actrices/${item.id}`);
+                const actriceDetail = response.data;
+                console.log('📥 Détails actrice reçus:', actriceDetail);
+
+                const newSelectedItem = { ...actriceDetail, type: 'actrice' };
+                const newFormData = {
+                    ...actriceDetail,
+                    photo_short: extractShortPath(actriceDetail.photo, PHOTOS_PREFIX)
+                };
+
+                console.log('🔄 selectedItem mis à jour:', newSelectedItem);
+                console.log('🔄 formData mis à jour:', newFormData);
+
+                setSelectedItem(newSelectedItem);
+                setFormData(newFormData);
+
+            } catch (error) {
+                console.error('❌ Erreur chargement détails actrice:', error);
+                const fallbackFormData = {
+                    ...item,
+                    photo_short: extractShortPath(item.photo, PHOTOS_PREFIX)
+                };
+                console.log('🔄 Fallback formData:', fallbackFormData);
+                setFormData(fallbackFormData);
+            }
         }
+
+        console.log('✅ FIN handleCardClick');
     };
 
     const handleCloseDetail = () => {
@@ -1780,56 +1837,115 @@ export default function AdminInterface({ onBack }) {
 
     const handleSaveDetail = async () => {
         try {
+            console.log('🔍 DÉBUT handleSaveDetail');
+            console.log('🔍 Avant sauvegarde - formData:', formData);
+            console.log('🔍 Avant sauvegarde - selectedItem:', selectedItem);
+
             const url = `http://127.0.0.1:5000/api/${selectedItem.type}s/${selectedItem.id}`;
             const submitData = { ...formData };
 
+            console.log('🔍 URL de sauvegarde:', url);
+            console.log('🔍 submitData initial:', submitData);
+
             // Reconstruire les chemins complets pour les scènes
             if (selectedItem.type === 'scene') {
+                console.log('🎬 Traitement scène...');
+
                 if (submitData.image_short) {
                     submitData.image = MINIATURES_PREFIX + submitData.image_short;
+                    console.log('🖼️ Image - court:', submitData.image_short, '→ complet:', submitData.image);
                 }
                 if (submitData.chemin_short) {
                     submitData.chemin = VIDEOS_PREFIX + submitData.chemin_short;
+                    console.log('📹 Chemin - court:', submitData.chemin_short, '→ complet:', submitData.chemin);
                 }
+
                 // Supprimer les champs courts avant envoi
                 delete submitData.image_short;
                 delete submitData.chemin_short;
 
                 if (submitData.duree) {
                     submitData.duree = parseInt(submitData.duree);
+                    console.log('⏱️ Durée convertie:', submitData.duree);
                 }
             } else if (selectedItem.type === 'actrice') {
+                console.log('👤 Traitement actrice...');
+
                 if (submitData.photo_short) {
                     submitData.photo = PHOTOS_PREFIX + submitData.photo_short;
+                    console.log('📷 Photo - court:', submitData.photo_short, '→ complet:', submitData.photo);
                 }
                 // Supprimer le champ court avant envoi
                 delete submitData.photo_short;
             }
 
-            await axios.put(url, submitData);
+            console.log('📤 submitData final envoyé au serveur:', submitData);
+
+            // Envoyer la requête de sauvegarde
+            console.log('🚀 Envoi de la requête PUT...');
+            const saveResponse = await axios.put(url, submitData);
+            console.log('✅ Réponse serveur sauvegarde:', saveResponse.data);
 
             setEditMode(false);
-            // CORRECTION : Mettre à jour selectedItem avec les données complètes (submitData) au lieu de formData
-            setSelectedItem({ ...submitData, type: selectedItem.type, id: selectedItem.id });
+            console.log('📝 Mode édition désactivé');
 
-            // CORRECTION : Mettre à jour formData pour supprimer les champs courts
+            // ✅ NOUVEAU : Recharger les données complètes depuis le serveur
+            console.log('🔄 Rechargement des données fraîches...');
+
             if (selectedItem.type === 'scene') {
-                setFormData({
-                    ...submitData,
-                    image_short: extractShortPath(submitData.image, MINIATURES_PREFIX),
-                    chemin_short: extractShortPath(submitData.chemin, VIDEOS_PREFIX),
-                });
-            } else if (selectedItem.type === 'actrice') {
-                setFormData({
-                    ...submitData,
-                    photo_short: extractShortPath(submitData.photo, PHOTOS_PREFIX),
-                });
+                console.log('🎬 Rechargement détails scène ID:', selectedItem.id);
+
+                const response = await axios.get(`http://127.0.0.1:5000/api/scenes/${selectedItem.id}`);
+                const freshData = response.data;
+                console.log('📥 Données fraîches scène reçues:', freshData);
+
+                const newSelectedItem = { ...freshData, type: 'scene' };
+                const newFormData = {
+                    ...freshData,
+                    image_short: extractShortPath(freshData.image, MINIATURES_PREFIX),
+                    chemin_short: extractShortPath(freshData.chemin, VIDEOS_PREFIX),
+                    actrice_ids: freshData.actrices ? freshData.actrices.map(a => a.id) : [],
+                    tags: freshData.tags ? freshData.tags.map(t => t.nom || t) : []
+                };
+
+                console.log('🔄 Nouveau selectedItem:', newSelectedItem);
+                console.log('🔄 Nouveau formData:', newFormData);
+
+                setSelectedItem(newSelectedItem);
+                setFormData(newFormData);
+
+            } else {
+                console.log('👤 Rechargement détails actrice ID:', selectedItem.id);
+
+                const response = await axios.get(`http://127.0.0.1:5000/api/actrices/${selectedItem.id}`);
+                const freshData = response.data;
+                console.log('📥 Données fraîches actrice reçues:', freshData);
+
+                const newSelectedItem = { ...freshData, type: 'actrice' };
+                const newFormData = {
+                    ...freshData,
+                    photo_short: extractShortPath(freshData.photo, PHOTOS_PREFIX)
+                };
+
+                console.log('🔄 Nouveau selectedItem:', newSelectedItem);
+                console.log('🔄 Nouveau formData:', newFormData);
+
+                setSelectedItem(newSelectedItem);
+                setFormData(newFormData);
             }
 
-            loadData();
+            // ✅ Recharger aussi la liste principale
+            console.log('🔄 Rechargement liste principale...');
+            await loadData();
+            console.log('✅ Liste principale rechargée');
+
             showSnackbar('Modifications sauvegardées avec succès');
+            console.log('✅ FIN handleSaveDetail - Succès');
+
         } catch (error) {
-            console.error('Erreur:', error);
+            console.error('❌ ERREUR handleSaveDetail:', error);
+            console.error('❌ Détails erreur:', error.response?.data);
+            console.error('❌ Status:', error.response?.status);
             showSnackbar(`Erreur lors de la sauvegarde: ${error.response?.data?.error || error.message}`, 'error');
         }
     };
@@ -1841,7 +1957,7 @@ export default function AdminInterface({ onBack }) {
                 return;
             }
 
-            console.log('Ouverture de:', scene.chemin);
+            //console.log('Ouverture de:', scene.chemin);
 
             const response = await axios.post('http://127.0.0.1:5000/api/scenes/open-video', {
                 chemin: scene.chemin,
@@ -1854,7 +1970,7 @@ export default function AdminInterface({ onBack }) {
 
                 // Programmer la demande de confirmation dans 10 secondes
                 setTimeout(() => {
-                    console.log('📋 Affichage du dialog de confirmation pour:', scene.titre);
+                    //console.log('📋 Affichage du dialog de confirmation pour:', scene.titre);
                     setWatchConfirmDialog({
                         open: true,
                         scene: scene,
@@ -1934,19 +2050,24 @@ export default function AdminInterface({ onBack }) {
             </MainTitle>
 
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 5 }}>
-                <StyledTabs value={tabValue + 1 } onChange={handleTabChange}>
+                <StyledTabs value={tabValue + 1} onChange={handleTabChange}>
                     <Tab
                         icon={<ArrowBack />}
                         label="Retour à l'accueil"
-                        onClick={onBack || (() => window.history.back())}
                     />
+                    <Tab icon={<Analytics />} label="Synchronisation" />
                     <Tab icon={<Movie />} label="Scènes" />
                     <Tab icon={<Person />} label="Actrices" />
                 </StyledTabs>
             </Box>
 
-            {/* ONGLET SCENES */}
+            {/* ONGLET SYNCHRONISATION */}
             <TabPanelContent value={tabValue} index={0}>
+                <SyncDashboard />
+            </TabPanelContent>
+
+            {/* ONGLET SCENES */}
+            <TabPanelContent value={tabValue} index={1}>
                 <SectionHeader>
                     <SectionTitle>
                         <Movie />
@@ -2103,7 +2224,7 @@ export default function AdminInterface({ onBack }) {
             </TabPanelContent>
 
             {/* ONGLET ACTRICES */}
-            <TabPanelContent value={tabValue} index={1}>
+            <TabPanelContent value={tabValue} index={2}>
                 <SectionHeader>
                     <SectionTitle>
                         <Person />
@@ -2408,7 +2529,7 @@ export default function AdminInterface({ onBack }) {
                                 <Grid size={8}>
                                     <Autocomplete
                                         multiple
-                                        options={actrices}
+                                        options={[...actrices].sort((a, b) => a.nom.localeCompare(b.nom))}
                                         getOptionLabel={(option) => option.nom}
                                         value={actrices.filter(a => formData.actrice_ids?.includes(a.id)) || []}
                                         onChange={(event, newValue) => {

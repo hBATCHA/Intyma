@@ -1176,8 +1176,9 @@ def update_scene(scene_id):
         print(f"Anciennes actrices: {old_actrice_ids}")
 
         # Mettre à jour les champs simples
-        for field in ['titre', 'synopsis', 'duree', 'qualite', 'site', 'studio', 'note_perso', 'image']:
+        for field in ['titre', 'synopsis', 'duree', 'qualite', 'site', 'studio', 'note_perso', 'image', 'chemin']:
             if field in data:
+                print(f"Mise à jour {field}: {getattr(scene, field)} -> {data[field]}")
                 setattr(scene, field, data[field])
 
         # Mettre à jour les actrices
@@ -1747,6 +1748,571 @@ def open_video():
             "error": str(e),
             "success": False
         }), 400
+
+@app.route('/api/admin/scan-disk', methods=['POST'])
+def scan_disk():
+    """Scanner le disque dur et comparer avec la BDD"""
+    try:
+        base_path = '/Volumes/My Passport for Mac/Privé/M364TR0N/'
+
+        if not os.path.exists(base_path):
+            return jsonify({"error": "Disque dur non trouvé"}), 404
+
+        print(f"🔍 Scan du disque: {base_path}")
+
+        # Scanner les dossiers (actrices)
+        disk_actresses = []
+        disk_videos = []
+
+        for actress_folder in os.listdir(base_path):
+            actress_path = os.path.join(base_path, actress_folder)
+            if os.path.isdir(actress_path) and not actress_folder.startswith('.'):
+                try:
+                    # Lister les vidéos de cette actrice
+                    videos = []
+                    for file in os.listdir(actress_path):
+                        if file.lower().endswith(('.mp4', '.avi', '.mkv', '.mov', '.wmv')):
+                            videos.append(file)
+
+                    if videos:  # Seulement si elle a des vidéos
+                        disk_actresses.append({
+                            'name': actress_folder,
+                            'video_count': len(videos),
+                            'videos': videos
+                        })
+
+                        for video in videos:
+                            full_path = os.path.join(actress_path, video)
+                            relative_path = f"{actress_folder}/{video}"
+
+                            disk_videos.append({
+                                'actress': actress_folder,
+                                'filename': video,
+                                'relative_path': relative_path,
+                                'full_path': full_path,
+                                'size_mb': round(os.path.getsize(full_path) / (1024 * 1024), 1) if os.path.exists(
+                                    full_path) else 0
+                            })
+
+                except Exception as e:
+                    print(f"❌ Erreur lecture dossier {actress_folder}: {e}")
+                    continue
+
+        # Récupérer les données de la BDD
+        db_scenes = Scene.query.all()
+        db_actresses = Actrice.query.all()
+
+        # Créer des sets pour comparaison rapide
+        db_scene_paths = set()
+        for scene in db_scenes:
+            if scene.chemin:
+                # Extraire le chemin relatif depuis le chemin complet
+                if scene.chemin.startswith('/Volumes/My Passport for Mac/Privé/M364TR0N/'):
+                    relative = scene.chemin.replace('/Volumes/My Passport for Mac/Privé/M364TR0N/', '')
+                    db_scene_paths.add(relative)
+
+        db_actress_names = {actress.nom.lower() for actress in db_actresses}
+
+        # Identifier les éléments manquants
+        missing_videos = []
+        missing_actresses = []
+        orphan_scenes = []
+
+        # Vidéos manquantes (sur disque mais pas en BDD)
+        for video in disk_videos:
+            if video['relative_path'] not in db_scene_paths:
+                missing_videos.append(video)
+
+        # Actrices manquantes (sur disque mais pas en BDD)
+        for actress in disk_actresses:
+            if actress['name'].lower() not in db_actress_names:
+                missing_actresses.append(actress)
+
+        # Scènes orphelines (en BDD mais plus sur disque)
+        for scene in db_scenes:
+            if scene.chemin and not os.path.exists(scene.chemin):
+                orphan_scenes.append({
+                    'id': scene.id,
+                    'titre': scene.titre,
+                    'chemin': scene.chemin
+                })
+
+        print(f"✅ Scan terminé: {len(disk_videos)} vidéos trouvées, {len(missing_videos)} manquantes")
+
+        return jsonify({
+            'disk_stats': {
+                'total_actresses': len(disk_actresses),
+                'total_videos': len(disk_videos)
+            },
+            'db_stats': {
+                'imported_actresses': len(db_actresses),
+                'imported_scenes': len(db_scenes)
+            },
+            'comparison': {
+                'missing_actresses': missing_actresses,
+                'missing_videos': missing_videos[:100],  # Limiter pour l'affichage
+                'orphan_scenes': orphan_scenes
+            },
+            'progress': {
+                'actresses_percent': round((len(db_actresses) / max(len(disk_actresses), 1)) * 100, 1),
+                'videos_percent': round((len(db_scenes) / max(len(disk_videos), 1)) * 100, 1)
+            }
+        })
+
+    except Exception as e:
+        print(f"❌ Erreur scan disque: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin/random-video', methods=['POST'])
+def get_random_unimported_video():
+    """Récupérer une vidéo aléatoire non importée et l'ouvrir"""
+    try:
+        base_path = '/Volumes/My Passport for Mac/Privé/M364TR0N/'
+
+        # Scanner toutes les vidéos
+        all_videos = []
+        for actress_folder in os.listdir(base_path):
+            actress_path = os.path.join(base_path, actress_folder)
+            if os.path.isdir(actress_path) and not actress_folder.startswith('.'):
+                try:
+                    for file in os.listdir(actress_path):
+                        if file.lower().endswith(('.mp4', '.avi', '.mkv', '.mov', '.wmv')):
+                            full_path = os.path.join(actress_path, file)
+                            relative_path = f"{actress_folder}/{file}"
+                            all_videos.append({
+                                'actress': actress_folder,
+                                'filename': file,
+                                'relative_path': relative_path,
+                                'full_path': full_path
+                            })
+                except:
+                    continue
+
+        if not all_videos:
+            return jsonify({"error": "Aucune vidéo trouvée sur le disque"}), 404
+
+        # Filtrer les vidéos déjà importées
+        db_scene_paths = set()
+        db_scenes = Scene.query.all()
+        for scene in db_scenes:
+            if scene.chemin:
+                if scene.chemin.startswith('/Volumes/My Passport for Mac/Privé/M364TR0N/'):
+                    relative = scene.chemin.replace('/Volumes/My Passport for Mac/Privé/M364TR0N/', '')
+                    db_scene_paths.add(relative)
+
+        # Vidéos non importées
+        unimported_videos = [v for v in all_videos if v['relative_path'] not in db_scene_paths]
+
+        if not unimported_videos:
+            return jsonify({"error": "Toutes les vidéos sont déjà importées ! 🎉"}), 404
+
+        # Choisir une vidéo aléatoire
+        random_video = random.choice(unimported_videos)
+
+        # Vérifier si l'actrice existe en BDD
+        actrice_existante = Actrice.query.filter_by(nom=random_video['actress']).first()
+
+        # Générer un titre propre depuis le nom de fichier
+        clean_title = random_video['filename']
+        # Supprimer l'extension
+        clean_title = os.path.splitext(clean_title)[0]
+        # Remplacer les underscores/tirets par des espaces
+        clean_title = clean_title.replace('_', ' ').replace('-', ' ')
+        # Nettoyer les espaces multiples
+        clean_title = ' '.join(clean_title.split())
+
+        # Essayer d'ouvrir la vidéo
+        try:
+            subprocess.run(["open", random_video['full_path']], check=True)
+            video_opened = True
+            open_message = f"✅ Vidéo ouverte: {random_video['filename']}"
+        except subprocess.CalledProcessError as e:
+            video_opened = False
+            open_message = f"❌ Erreur ouverture: {str(e)}"
+        except Exception as e:
+            video_opened = False
+            open_message = f"❌ Erreur: {str(e)}"
+
+        print(f"🎲 Vidéo surprise: {random_video['actress']}/{random_video['filename']}")
+
+        return jsonify({
+            "success": True,
+            "video": {
+                "actress": random_video['actress'],
+                "filename": random_video['filename'],
+                "full_path": random_video['full_path'],
+                "relative_path": random_video['relative_path'],
+                "suggested_title": clean_title,
+                "size_mb": round(os.path.getsize(random_video['full_path']) / (1024 * 1024), 1) if os.path.exists(
+                    random_video['full_path']) else 0
+            },
+            "actress_info": {
+                "exists_in_db": actrice_existante is not None,
+                "actress_id": actrice_existante.id if actrice_existante else None,
+                "actress_scenes_count": len(actrice_existante.scenes) if actrice_existante else 0
+            },
+            "stats": {
+                "total_unimported": len(unimported_videos),
+                "total_videos_on_disk": len(all_videos)
+            },
+            "open_result": {
+                "opened": video_opened,
+                "message": open_message
+            }
+        })
+
+    except Exception as e:
+        print(f"❌ Erreur random video: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin/quick-add-scene', methods=['POST'])
+def quick_add_scene_from_video():
+    """Ajouter rapidement une scène depuis les infos d'une vidéo"""
+    try:
+        data = request.get_json()
+
+        # Construire le chemin complet
+        full_path = '/Volumes/My Passport for Mac/Privé/M364TR0N/' + data['relative_path']
+
+        # Vérifier que le fichier existe
+        if not os.path.exists(full_path):
+            return jsonify({"error": "Fichier vidéo non trouvé"}), 404
+
+        # Vérifier unicité
+        existing_scene = Scene.query.filter_by(chemin=full_path).first()
+        if existing_scene:
+            return jsonify({
+                "error": f"Cette vidéo est déjà importée: '{existing_scene.titre}' (ID: {existing_scene.id})"
+            }), 409
+
+        # Créer la scène
+        scene = Scene(
+            chemin=full_path,
+            titre=data.get('titre', data['suggested_title']),
+            synopsis=data.get('synopsis'),
+            duree=data.get('duree'),
+            qualite=data.get('qualite', 'HD'),
+            site=data.get('site'),
+            studio=data.get('studio'),
+            date_ajout=datetime.now().date(),
+            note_perso=data.get('note_perso'),
+            image=data.get('image')
+        )
+
+        db.session.add(scene)
+        db.session.flush()
+
+        # Associer l'actrice si elle existe
+        if data.get('actress_id'):
+            actrice = db.session.get(Actrice, data['actress_id'])
+            if actrice:
+                scene.actrices.append(actrice)
+
+        # Associer les tags
+        if data.get('tags'):
+            for tag_name in data['tags']:
+                if tag_name.strip():
+                    tag = Tag.query.filter_by(nom=tag_name.strip()).first()
+                    if not tag:
+                        tag = Tag(nom=tag_name.strip())
+                        db.session.add(tag)
+                        db.session.flush()
+                    scene.tags.append(tag)
+
+        db.session.commit()
+
+        # Mettre à jour les stats actrice si applicable
+        if data.get('actress_id'):
+            update_actrice_note_moyenne(data['actress_id'])
+            update_actrice_tags_typiques(data['actress_id'])
+
+        print(f"✅ Scène ajoutée rapidement: {scene.titre}")
+
+        return jsonify({
+            "success": True,
+            "message": "Scène ajoutée avec succès",
+            "scene_id": scene.id
+        })
+
+    except Exception as e:
+        print(f"❌ Erreur quick add: {e}")
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+# Ajouter ces endpoints dans app.py pour débugger
+
+@app.route('/api/admin/debug/orphan-scenes', methods=['GET'])
+def get_orphan_scenes():
+    """Récupérer les détails des scènes orphelines"""
+    try:
+        orphan_scenes = []
+        scenes = Scene.query.all()
+
+        for scene in scenes:
+            if scene.chemin and not os.path.exists(scene.chemin):
+                orphan_scenes.append({
+                    'id': scene.id,
+                    'titre': scene.titre,
+                    'chemin': scene.chemin,
+                    'date_ajout': scene.date_ajout.isoformat() if scene.date_ajout else None,
+                    'actrices': [a.nom for a in scene.actrices] if scene.actrices else []
+                })
+
+        return jsonify({
+            'orphan_scenes': orphan_scenes,
+            'count': len(orphan_scenes)
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin/debug/disk-actresses', methods=['GET'])
+def get_disk_actresses():
+    """Analyser les dossiers d'actrices sur le disque"""
+    try:
+        base_path = '/Volumes/My Passport for Mac/Privé/M364TR0N/'
+
+        if not os.path.exists(base_path):
+            return jsonify({"error": "Disque dur non trouvé"}), 404
+
+        disk_folders = []
+        for item in os.listdir(base_path):
+            item_path = os.path.join(base_path, item)
+            if os.path.isdir(item_path) and not item.startswith('.'):
+                # Compter les fichiers vidéos
+                video_files = []
+                try:
+                    for file in os.listdir(item_path):
+                        if file.lower().endswith(('.mp4', '.avi', '.mkv', '.mov', '.wmv')):
+                            video_files.append(file)
+                except:
+                    video_files = []
+
+                disk_folders.append({
+                    'name': item,
+                    'video_count': len(video_files),
+                    'has_videos': len(video_files) > 0,
+                    'sample_videos': video_files[:3] if video_files else []
+                })
+
+        # Trier par nombre de vidéos décroissant
+        disk_folders.sort(key=lambda x: x['video_count'], reverse=True)
+
+        # Séparer ceux avec et sans vidéos
+        with_videos = [f for f in disk_folders if f['has_videos']]
+        without_videos = [f for f in disk_folders if not f['has_videos']]
+
+        return jsonify({
+            'total_folders': len(disk_folders),
+            'folders_with_videos': len(with_videos),
+            'folders_without_videos': len(without_videos),
+            'top_actresses': with_videos[:10],  # Top 10 avec le plus de vidéos
+            'empty_folders': without_videos[:20],  # 20 premiers dossiers vides
+            'suspicious_folders': [f for f in disk_folders if len(f['name']) < 3 or f['name'].isdigit()]
+            # Dossiers suspects
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin/debug/missing-videos', methods=['GET'])
+def get_missing_videos_sample():
+    """Récupérer un échantillon des vidéos manquantes"""
+    try:
+        base_path = '/Volumes/My Passport for Mac/Privé/M364TR0N/'
+
+        # Scanner quelques vidéos du disque
+        sample_missing = []
+        db_scene_paths = set()
+
+        # Récupérer les chemins déjà en BDD
+        db_scenes = Scene.query.all()
+        for scene in db_scenes:
+            if scene.chemin:
+                if scene.chemin.startswith('/Volumes/My Passport for Mac/Privé/M364TR0N/'):
+                    relative = scene.chemin.replace('/Volumes/My Passport for Mac/Privé/M364TR0N/', '')
+                    db_scene_paths.add(relative)
+
+        # Scanner un échantillon du disque
+        count = 0
+        for actress_folder in os.listdir(base_path):
+            if count >= 20:  # Limite pour ne pas surcharger
+                break
+
+            actress_path = os.path.join(base_path, actress_folder)
+            if os.path.isdir(actress_path) and not actress_folder.startswith('.'):
+                try:
+                    for file in os.listdir(actress_path):
+                        if file.lower().endswith(('.mp4', '.avi', '.mkv', '.mov', '.wmv')):
+                            relative_path = f"{actress_folder}/{file}"
+
+                            if relative_path not in db_scene_paths:
+                                sample_missing.append({
+                                    'actress': actress_folder,
+                                    'filename': file,
+                                    'relative_path': relative_path,
+                                    'size_mb': round(os.path.getsize(os.path.join(actress_path, file)) / (1024 * 1024),
+                                                     1)
+                                })
+                                count += 1
+
+                                if count >= 20:  # Max 20 exemples
+                                    break
+                except:
+                    continue
+
+        return jsonify({
+            'sample_missing_videos': sample_missing,
+            'sample_count': len(sample_missing),
+            'note': 'Échantillon de 20 vidéos manquantes maximum'
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin/debug/db-actresses', methods=['GET'])
+def get_db_actresses_analysis():
+    """Analyser les actrices en base de données"""
+    try:
+        actrices = Actrice.query.all()
+
+        # Analyser les actrices
+        with_scenes = []
+        without_scenes = []
+        duplicates = []
+
+        # Détecter les doublons potentiels
+        names_seen = {}
+        for actrice in actrices:
+            name_lower = actrice.nom.lower().strip()
+            if name_lower in names_seen:
+                duplicates.append({
+                    'name': actrice.nom,
+                    'id': actrice.id,
+                    'duplicate_of': names_seen[name_lower]
+                })
+            else:
+                names_seen[name_lower] = {'id': actrice.id, 'name': actrice.nom}
+
+            # Compter les scènes
+            scene_count = len(actrice.scenes) if actrice.scenes else 0
+            actrice_data = {
+                'id': actrice.id,
+                'nom': actrice.nom,
+                'scene_count': scene_count,
+                'note_moyenne': actrice.note_moyenne,
+                'nationalite': actrice.nationalite
+            }
+
+            if scene_count > 0:
+                with_scenes.append(actrice_data)
+            else:
+                without_scenes.append(actrice_data)
+
+        # Trier par nombre de scènes
+        with_scenes.sort(key=lambda x: x['scene_count'], reverse=True)
+
+        return jsonify({
+            'total_actresses': len(actrices),
+            'with_scenes': len(with_scenes),
+            'without_scenes': len(without_scenes),
+            'duplicates_count': len(duplicates),
+            'top_actresses': with_scenes[:10],
+            'actresses_without_scenes': without_scenes[:20],
+            'potential_duplicates': duplicates[:10]
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin/analyze-actresses', methods=['GET'])
+def analyze_actresses():
+    """Analyser les statistiques des actrices"""
+    try:
+        actrices = Actrice.query.all()
+        scenes = Scene.query.all()
+
+        print(f"🔍 DEBUG: {len(actrices)} actrices trouvées")
+        print(f"🔍 DEBUG: {len(scenes)} scènes trouvées")
+
+        actresses_with_scenes = 0
+        actresses_without_scenes = 0
+        top_actresses = []
+
+        for actrice in actrices:
+            scene_count = len([s for s in scenes if s.actrices and any(a.id == actrice.id for a in s.actrices)])
+            print(f"🔍 DEBUG: {actrice.nom} = {scene_count} scènes")
+
+            if scene_count > 0:
+                actresses_with_scenes += 1
+                top_actresses.append({
+                    "name": actrice.nom,
+                    "scene_count": scene_count,
+                    "note_moyenne": actrice.note_moyenne or 0
+                })
+            else:
+                actresses_without_scenes += 1
+
+        # Trier par nombre de scènes
+        top_actresses.sort(key=lambda x: x["scene_count"], reverse=True)
+
+        result = {
+            "success": True,
+            "total_actresses": len(actrices),
+            "actresses_with_scenes": actresses_with_scenes,
+            "actresses_without_scenes": actresses_without_scenes,
+            "top_actresses": top_actresses[:10],
+            "recommendations": [
+                f"{actresses_without_scenes} actrices sans scènes à nettoyer",
+                f"Top actrice: {top_actresses[0]['name'] if top_actresses else 'Aucune'}"
+            ]
+        }
+
+        print(f"🔍 DEBUG: Résultat final = {result}")
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"❌ Erreur analyze_actresses: {e}")
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/api/admin/delete-video', methods=['POST'])
+def delete_video():
+    """Supprimer une vidéo du disque dur"""
+    try:
+        data = request.get_json()
+        video_path = data.get('video_path')
+
+        if not video_path or not os.path.exists(video_path):
+            return jsonify({"error": "Fichier non trouvé"}), 404
+
+        # Envoyer dans la corbeille au lieu de supprimer définitivement
+        if platform.system() == "Darwin":  # macOS
+            subprocess.run(["osascript", "-e", f'tell application "Finder" to delete POSIX file "{video_path}"'],
+                           check=True)
+        elif platform.system() == "Windows":
+            import winshell
+            winshell.delete_file(video_path)
+        elif platform.system() == "Linux":
+            subprocess.run(["gio", "trash", video_path], check=True)
+        else:
+            # Fallback: suppression définitive si OS non supporté
+            os.remove(video_path)
+        return jsonify({
+            "success": True,
+            "message": f"Vidéo supprimée: {os.path.basename(video_path)}"
+        })
+
+    except Exception as e:
+        print(f"❌ Erreur delete_video: {e}")
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == '__main__':
     with app.app_context():

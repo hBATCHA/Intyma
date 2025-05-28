@@ -792,9 +792,11 @@ const ActriceSearchAndFilters = ({
             {/* Ligne 5 : Compteur de résultats */}
             <Fade in={true}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <ResultsCounter>
-                        <FilterList sx={{ fontSize: '1rem' }} />
-                        {filteredActrices.length} actrice{filteredActrices.length !== 1 ? 's' : ''} trouvée{filteredActrices.length !== 1 ? 's' : ''}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <FilterList sx={{ fontSize: '1rem', color: '#DAA520' }} />
+                        <Typography variant="body1" sx={{ color: '#DAA520', fontWeight: 600, fontSize: '0.9rem' }}>
+                            {filteredActrices.length} actrice{filteredActrices.length !== 1 ? 's' : ''} trouvée{filteredActrices.length !== 1 ? 's' : ''}
+                        </Typography>
                         {activeFiltersCount > 0 && (
                             <Chip
                                 label={`${activeFiltersCount} filtre${activeFiltersCount > 1 ? 's' : ''}`}
@@ -806,7 +808,7 @@ const ActriceSearchAndFilters = ({
                                 }}
                             />
                         )}
-                    </ResultsCounter>
+                    </Box>
                 </Box>
             </Fade>
 

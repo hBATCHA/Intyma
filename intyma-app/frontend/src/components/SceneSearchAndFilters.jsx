@@ -205,14 +205,14 @@ const SceneSearchAndFilters = ({
 
     // Extraction des options uniques depuis les données
     const filterOptions = useMemo(() => {
-        console.log('🔍 Extraction des tags depuis les scènes:', scenes.length, 'scènes');
+        //console.log('🔍 Extraction des tags depuis les scènes:', scenes.length, 'scènes');
 
         const qualites = [...new Set(scenes.map(s => s.qualite).filter(Boolean))];
         const studios = [...new Set(scenes.map(s => s.studio).filter(Boolean))];
 
         const allTags = [];
         scenes.forEach((scene, index) => {
-            console.log(`📝 Scène ${index + 1}: "${scene.titre}"`, scene.tags);
+            //console.log(`📝 Scène ${index + 1}: "${scene.titre}"`, scene.tags);
 
             if (scene.tags && Array.isArray(scene.tags)) {
                 scene.tags.forEach(tag => {
@@ -239,7 +239,7 @@ const SceneSearchAndFilters = ({
         });
 
         const uniqueTags = [...new Set(allTags)].filter(Boolean);
-        console.log('✅ Tags uniques extraits:', uniqueTags);
+        //console.log('✅ Tags uniques extraits:', uniqueTags);
 
         return {
             qualites: ['Toutes', ...qualites.sort()],
@@ -740,22 +740,22 @@ const SceneSearchAndFilters = ({
 
             {/* Ligne 3 : Compteur de résultats */}
             <Fade in={true}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <ResultsCounter>
-                        <FilterList sx={{ fontSize: '1rem' }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <FilterList sx={{ fontSize: '1rem', color: '#DAA520' }} />
+                    <Typography variant="body1" sx={{ color: '#DAA520', fontWeight: 600, fontSize: '0.9rem' }}>
                         {filteredScenes.length} scène{filteredScenes.length !== 1 ? 's' : ''} trouvée{filteredScenes.length !== 1 ? 's' : ''}
-                        {activeFiltersCount > 0 && (
-                            <Chip
-                                label={`${activeFiltersCount} filtre${activeFiltersCount > 1 ? 's' : ''}`}
-                                size="small"
-                                sx={{
-                                    background: 'rgba(218, 165, 32, 0.2)',
-                                    color: '#DAA520',
-                                    fontSize: '0.7rem'
-                                }}
-                            />
-                        )}
-                    </ResultsCounter>
+                    </Typography>
+                    {activeFiltersCount > 0 && (
+                        <Chip
+                            label={`${activeFiltersCount} filtre${activeFiltersCount > 1 ? 's' : ''}`}
+                            size="small"
+                            sx={{
+                                background: 'rgba(218, 165, 32, 0.2)',
+                                color: '#DAA520',
+                                fontSize: '0.7rem'
+                            }}
+                        />
+                    )}
                 </Box>
             </Fade>
 
