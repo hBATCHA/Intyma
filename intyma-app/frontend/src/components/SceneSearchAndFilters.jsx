@@ -181,6 +181,7 @@ const SceneSearchAndFilters = ({
         duree: 'Toutes',
         note: 'Toutes',
         studio: 'Toutes',
+        nbActrices: 'Toutes',
         dateAjoutOrder: 'Toutes', // Pour date d'ajout
         dateSceneOrder: 'Toutes', // Pour date de scène
         dateAjoutFrom: '', // Filtre date d'ajout début
@@ -279,6 +280,17 @@ const SceneSearchAndFilters = ({
                     return false;
                 }
             }
+
+            // Filtre nombre d'actrices
+            if (filters.nbActrices !== 'Toutes') {
+                const count = scene.actrices?.length || 0;
+                if (filters.nbActrices === '4+') {
+                    if (count < 4) return false;
+                } else {
+                    if (count !== parseInt(filters.nbActrices, 10)) return false;
+                }
+            }
+
 
             // Filtre qualité
             if (filters.qualite !== 'Toutes' && scene.qualite !== filters.qualite) {
@@ -401,6 +413,7 @@ const SceneSearchAndFilters = ({
             duree: 'Toutes',
             note: 'Toutes',
             studio: 'Toutes',
+            nbActrices: 'Toutes',
             dateAjoutOrder: 'Toutes',
             dateSceneOrder: 'Toutes',
             dateAjoutFrom: '',
@@ -614,6 +627,30 @@ const SceneSearchAndFilters = ({
                         ))}
                     </Select>
                 </StyledFilterSelect>
+
+                {/* Filtre Nombre d’actrices */}
+                <StyledFilterSelect size="small">
+                    <InputLabel>Nb d’actrices</InputLabel>
+                    <Select
+                        value={filters.nbActrices}
+                        onChange={(e) => setFilters(prev => ({
+                            ...prev,
+                            nbActrices: e.target.value
+                        }))}
+                        startAdornment={
+                            <InputAdornment position="start">
+                                <Person sx={{ color: '#DAA520', fontSize: '1rem' }} />
+                            </InputAdornment>
+                        }
+                    >
+                        <MenuItem value="Toutes">Toutes</MenuItem>
+                        <MenuItem value="1">1</MenuItem>
+                        <MenuItem value="2">2</MenuItem>
+                        <MenuItem value="3">3</MenuItem>
+                        <MenuItem value="4+">4+</MenuItem>
+                    </Select>
+                </StyledFilterSelect>
+
                 {/* Ligne 3 : Filtres supplémentaires */}
                 <Box sx={{
                     display: 'flex',
@@ -763,6 +800,7 @@ const SceneSearchAndFilters = ({
             {(filters.actrices.length > 0 || filters.tags.length > 0 ||
                 filters.qualite !== 'Toutes' || filters.duree !== 'Toutes' ||
                 filters.note !== 'Toutes' || filters.studio !== 'Toutes' ||
+                filters.nbActrices !== 'Toutes' ||
                 filters.favorisOnly || filters.historyOnly ||
                 filters.dateAjoutFrom || filters.dateAjoutTo ||
                 filters.dateSceneFrom || filters.dateSceneTo ||
@@ -913,6 +951,15 @@ const SceneSearchAndFilters = ({
                                     onDelete={() => setFilters(prev => ({ ...prev, dateSceneOrder: 'Toutes' }))}
                                 />
                             )}
+
+                            {filters.nbActrices !== 'Toutes' && (
+                                <FilterChip
+                                    label={`👥 ${filters.nbActrices}`}
+                                    size="small"
+                                    onDelete={() => setFilters(prev => ({ ...prev, nbActrices: 'Toutes' }))}
+                                />
+                            )}
+
                         </Box>
                     </Box>
                 </Fade>

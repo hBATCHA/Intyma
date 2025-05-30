@@ -529,7 +529,7 @@ const ActriceDuJour = ({
                                             <TagContainer>
                                                 {actrice.tags.slice(0, 3).map((tag, index) => (
                                                     <PremiumTag
-                                                        key={index}
+                                                        key={`actrice-tag-${index}`}  // Changez key={index} par ceci
                                                         label={tag}
                                                         variant={index === 0 ? 'premium' : 'default'}
                                                         size="small"
@@ -583,7 +583,7 @@ const ActriceDuJour = ({
                             <ScenesGrid>
                                 {scenes.map((scene, index) => (
                                     <Fade
-                                        key={scene.id}
+                                        key={`scene-${scene.id}-${index}`}  // Changez key={scene.id} par ceci
                                         in={true}
                                         timeout={1400 + (index * 200)}
                                     >
@@ -623,7 +623,7 @@ const ActriceDuJour = ({
                                                     <TagContainer>
                                                         {scene.tags.slice(0, 2).map((tag, tagIndex) => (
                                                             <PremiumTag
-                                                                key={tagIndex}
+                                                                key={`scene-tag-${scene.id}-${tagIndex}`}  // Changez key={tagIndex} par ceci
                                                                 label={tag}
                                                                 variant={tag === 'premium' || tag === 'hot' ? 'premium' : 'default'}
                                                                 size="small"

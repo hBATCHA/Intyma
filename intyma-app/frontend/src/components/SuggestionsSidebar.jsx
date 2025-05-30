@@ -400,16 +400,16 @@ const SuggestionsSidebar = ({
 
     // Charger les statistiques au montage
     useEffect(() => {
-        console.log("SuggestionsSidebar: Chargement des stats...");
+        //console.log("SuggestionsSidebar: Chargement des stats...");
         fetchStats();
     }, []);
 
     const fetchStats = async () => {
         try {
             setLoadingStats(true);
-            console.log("Fetching stats from:", `${apiBaseUrl}/api/stats`);
+            //console.log("Fetching stats from:", `${apiBaseUrl}/api/stats`);
             const response = await axios.get(`${apiBaseUrl}/api/stats`);
-            console.log("Stats reçues:", response.data);
+            //console.log("Stats reçues:", response.data);
             setStats(response.data);
             setError(null);
         } catch (err) {
@@ -425,9 +425,9 @@ const SuggestionsSidebar = ({
         try {
             setLoadingSurprise(true);
             setError(null);
-            console.log("Demande surprise à:", `${apiBaseUrl}/api/surprends_moi`);
+            //console.log("Demande surprise à:", `${apiBaseUrl}/api/surprends_moi`);
             const response = await axios.post(`${apiBaseUrl}/api/surprends_moi`);
-            console.log("Surprise reçue:", response.data);
+            //console.log("Surprise reçue:", response.data);
             setSurprise(response.data);
 
             // Callback optionnel
@@ -833,7 +833,7 @@ const SuggestionsSidebar = ({
 
                         <Grid container spacing={3} sx={{ maxWidth: '1000px', mx: 'auto', alignItems: 'stretch', minHeight: 520 }}>
                             {/* COLONNE STATS GAUCHE */}
-                            <Grid item xs={12} md={7}>
+                            <Grid size={{ xs: 12, md: 6 }}>
                                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3, height: '100%' }}>
                                     <StatCard>
                                         <StatIcon variant="primary">
@@ -880,7 +880,7 @@ const SuggestionsSidebar = ({
                                 </Box>
                             </Grid>
 
-                            <Grid item xs={12} md={5} sx={{ display: 'flex', alignItems: 'stretch', justifyContent: 'center', ml: {md: 10, xs: 0} }}>
+                            <Grid size={{xs: 12, md: 5}} sx={{ display: 'flex', alignItems: 'stretch', justifyContent: 'center', ml: {md: 10, xs: 0} }}>
                                 {/* Carte actrice favorite, agrandie */}
                                 <Box sx={{
                                     display: 'flex',

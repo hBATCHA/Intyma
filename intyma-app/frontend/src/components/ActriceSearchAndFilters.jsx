@@ -474,6 +474,9 @@ const ActriceSearchAndFilters = ({
                     const dateB = new Date(b.derniere_vue || 0);
                     compareValue = dateA - dateB;
                     break;
+                case 'date_ajout':
+                    compareValue = Number(a.id) - Number(b.id);
+                    break;
                 default:
                     compareValue = 0;
             }
@@ -633,6 +636,7 @@ const ActriceSearchAndFilters = ({
                         <MenuItem value="scenes">Nombre de scènes</MenuItem>
                         <MenuItem value="nationalite">Nationalité</MenuItem>
                         <MenuItem value="derniere_vue">Dernière vue</MenuItem>
+                        <MenuItem value="date_ajout">Date d’ajout</MenuItem>
                     </Select>
                 </StyledFilterSelect>
 

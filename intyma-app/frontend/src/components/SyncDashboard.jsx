@@ -485,7 +485,7 @@ const SyncDashboard = () => {
             {/* Statistiques */}
             {scanData && (
                 <Grid container spacing={3} sx={{ mb: 4 }}>
-                    <Grid item xs={12} md={3}>
+                    <Grid size={{xs:12, md:3}}>
                         <StatsCard>
                             <CardContent sx={{ textAlign: 'center', p: 3 }}>
                                 <VideoLibrary sx={{ fontSize: '3rem', color: '#DAA520', mb: 2 }} />
@@ -499,7 +499,7 @@ const SyncDashboard = () => {
                         </StatsCard>
                     </Grid>
 
-                    <Grid item xs={12} md={3}>
+                    <Grid size={{ xs: 12, md: 3 }}>
                         <StatsCard>
                             <CardContent sx={{ textAlign: 'center', p: 3 }}>
                                 <Movie sx={{ fontSize: '3rem', color: '#4CAF50', mb: 2 }} />
@@ -513,7 +513,7 @@ const SyncDashboard = () => {
                         </StatsCard>
                     </Grid>
 
-                    <Grid item xs={12} md={3}>
+                    <Grid size={{ xs: 12, md: 3 }}>
                         <StatsCard>
                             <CardContent sx={{ textAlign: 'center', p: 3 }}>
                                 <Person sx={{ fontSize: '3rem', color: '#FF6B9D', mb: 2 }} />
@@ -530,7 +530,7 @@ const SyncDashboard = () => {
                         </StatsCard>
                     </Grid>
 
-                    <Grid item xs={12} md={3}>
+                    <Grid size={{ xs: 12, md: 3 }}>
                         <StatsCard>
                             <CardContent sx={{ textAlign: 'center', p: 3 }}>
                                 <Warning sx={{ fontSize: '3rem', color: '#FF4444', mb: 2 }} />
@@ -552,7 +552,7 @@ const SyncDashboard = () => {
             {/* Barres de progression */}
             {scanData && (
                 <Grid container spacing={3} sx={{ mb: 4 }}>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <StatsCard>
                             <CardContent sx={{ p: 3 }}>
                                 <Typography variant="h6" sx={{ color: '#F4D03F', mb: 2 }}>
@@ -582,7 +582,7 @@ const SyncDashboard = () => {
                         </StatsCard>
                     </Grid>
 
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <StatsCard>
                             <CardContent sx={{ p: 3 }}>
                                 <Typography variant="h6" sx={{ color: '#F4D03F', mb: 2 }}>
@@ -627,7 +627,7 @@ const SyncDashboard = () => {
                     </Typography>
 
                     <Grid container spacing={3}>
-                        <Grid item xs={12} md={6}>
+                        <Grid size={{ xs: 12, md: 6 }}>
                             <Box sx={{ mb: 2 }}>
                                 <Typography variant="subtitle1" sx={{ color: '#9370DB', fontWeight: 600, mb: 1 }}>
                                     👤 Actrice
@@ -672,7 +672,7 @@ const SyncDashboard = () => {
                             </Box>
                         </Grid>
 
-                        <Grid item xs={12} md={6}>
+                        <Grid size={{ xs: 12, md: 6 }}>
                             <Box sx={{ mb: 2 }}>
                                 <Typography variant="subtitle1" sx={{ color: '#9370DB', fontWeight: 600, mb: 1 }}>
                                     📂 Chemin relatif
@@ -809,7 +809,7 @@ const SyncDashboard = () => {
             {scanData && (
                 <Grid container spacing={3}>
                     {scanData.comparison.missing_actresses.length > 0 && (
-                        <Grid item xs={12} md={6}>
+                        <Grid size={{ xs: 12, md: 6 }}>
                             <Alert
                                 severity="warning"
                                 sx={{
@@ -845,7 +845,7 @@ const SyncDashboard = () => {
                     )}
 
                     {scanData.comparison.orphan_scenes.length > 0 && (
-                        <Grid item xs={12} md={6}>
+                        <Grid size={{ xs: 12, md: 6 }}>
                             <Alert
                                 severity="error"
                                 sx={{
@@ -879,7 +879,7 @@ const SyncDashboard = () => {
                     </Typography>
 
                     <Grid container spacing={3}>
-                        <Grid item xs={12} md={3}>
+                        <Grid size={{ xs: 12, md: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2 }}>
                                 <Typography variant="h4" sx={{ color: '#FF6B9D', fontWeight: 600 }}>
                                     {actressAnalysis?.total_actresses}
@@ -890,7 +890,7 @@ const SyncDashboard = () => {
                             </Box>
                         </Grid>
 
-                        <Grid item xs={12} md={3}>
+                        <Grid size={{ xs: 12, md: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2 }}>
                                 <Typography variant="h4" sx={{ color: '#4CAF50', fontWeight: 600 }}>
                                     {actressAnalysis?.actresses_with_scenes}
@@ -901,7 +901,7 @@ const SyncDashboard = () => {
                             </Box>
                         </Grid>
 
-                        <Grid item xs={12} md={3}>
+                        <Grid size={{ xs: 12, md: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2 }}>
                                 <Typography variant="h4" sx={{ color: '#FF4444', fontWeight: 600 }}>
                                     {actressAnalysis?.actresses_without_scenes}
@@ -912,7 +912,7 @@ const SyncDashboard = () => {
                             </Box>
                         </Grid>
 
-                        <Grid item xs={12} md={3}>
+                        <Grid size={{ xs: 12, md: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2 }}>
                                 <Typography variant="h4" sx={{ color: '#DAA520', fontWeight: 600 }}>
                                     {actressAnalysis?.top_actresses?.[0]?.scene_count || 0}
@@ -970,7 +970,7 @@ const SyncDashboard = () => {
 
                 <DialogContent sx={{ background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%)', color: '#fff', pt: 3 }}>
                     <Grid container spacing={2}>
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                             <TextField
                                 label="Titre"
                                 fullWidth
@@ -1005,7 +1005,7 @@ const SyncDashboard = () => {
                             />
                         </Grid>
 
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                             <TextField
                                 label="Durée (minutes)"
                                 type="number"
@@ -1041,7 +1041,7 @@ const SyncDashboard = () => {
                             />
                         </Grid>
 
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                             <FormControl fullWidth>
                                 <InputLabel sx={{
                                     color: '#B8860B',
@@ -1073,7 +1073,7 @@ const SyncDashboard = () => {
                             </FormControl>
                         </Grid>
 
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                             <Autocomplete
                                 options={actrices}
                                 getOptionLabel={(option) => option.nom}
@@ -1123,7 +1123,7 @@ const SyncDashboard = () => {
                             />
                         </Grid>
 
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                             <TextField
                                 label="Studio"
                                 fullWidth
@@ -1158,7 +1158,7 @@ const SyncDashboard = () => {
                             />
                         </Grid>
 
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                             <TextField
                                 label="Site"
                                 fullWidth
@@ -1193,7 +1193,7 @@ const SyncDashboard = () => {
                             />
                         </Grid>
 
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                             <TextField
                                 label="Synopsis (optionnel)"
                                 fullWidth

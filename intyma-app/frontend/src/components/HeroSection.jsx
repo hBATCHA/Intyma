@@ -628,18 +628,12 @@ const HeroSection = ({
                          subtitle = "",
                          backgroundImage = "/silhouette-hero.jpg",
                          primaryButtonText = "Explorer maintenant !",
-                         secondaryButtonText = "Surprends-moi !",
-                         onPrimaryAction = () => console.log("Navigation vers Découvrir"),
-                         onSecondaryAction = null,
-                         showSecondaryButton = true,
+                         onPrimaryAction = () => "",
                          typewriterSpeed = 80,
                          pauseBetweenPhrases = 3000,
                          showReplacementAnimation = true, // Nouvelle prop pour activer les animations de remplacement
-                         height = "60vh",
-                         apiBaseUrl = "http://127.0.0.1:5000"
+                         height = "60vh"
                      }) => {
-    const [loading, setLoading] = useState(false);
-    const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
 
     // États pour l'animation typewriter
     const [currentPhraseIndex, setCurrentPhraseIndex] = useState(0);
@@ -737,7 +731,7 @@ const HeroSection = ({
                 }
             } else {
                 // Si le mot n'est pas trouvé, passer à la phrase suivante
-                console.log(`Mot "${currentWordToReplace.word}" non trouvé dans "${originalText}"`);
+                //console.log(`Mot "${currentWordToReplace.word}" non trouvé dans "${originalText}"`);
                 const timer = setTimeout(() => {
                     setIsReplacing(false);
                     setIsErasing(false);
@@ -782,39 +776,6 @@ const HeroSection = ({
         }
     }, [displayedText, isTyping, isReplacing, isErasing, currentPhraseIndex, typewriterSpeed, pauseBetweenPhrases, showReplacementAnimation, originalText, currentWordToReplace, replacementWord]);
 
-    // Fonction pour appeler l'API surprends_moi
-    const handleSurprendsMoi = async () => {
-        if (onSecondaryAction) {
-            onSecondaryAction();
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const response = await axios.post(`${apiBaseUrl}/api/surprends_moi`);
-            const surprise = response.data;
-
-            setNotification({
-                open: true,
-                message: `🎲 ${surprise.message} - "${surprise.titre}" (${surprise.duree} min)`,
-                severity: 'success'
-            });
-
-            // Optionnel : rediriger vers la scène ou l'afficher dans un modal
-            console.log('Scène surprise:', surprise);
-
-        } catch (error) {
-            console.error('Erreur API surprends_moi:', error);
-            setNotification({
-                open: true,
-                message: '😔 Oups ! Impossible de récupérer une suggestion pour le moment.',
-                severity: 'error'
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const handleCloseNotification = () => {
         setNotification({ ...notification, open: false });
     };
@@ -845,56 +806,14 @@ const HeroSection = ({
                                     size="large"
                                     startIcon={<Explore />}
                                     onClick={onPrimaryAction}
-                                    disabled={loading}
                                 >
                                     {primaryButtonText}
                                 </CTAButton>
-
-                                {showSecondaryButton && (
-                                    <CTAButton
-                                        variant="secondary"
-                                        size="large"
-                                        startIcon={loading ? null : <PlayArrow />}
-                                        onClick={handleSurprendsMoi}
-                                        disabled={loading}
-                                    >
-                                        {loading ? (
-                                            <LoadingContainer>
-                                                <CircularProgress size={20} color="inherit" />
-                                                Recherche...
-                                            </LoadingContainer>
-                                        ) : (
-                                            secondaryButtonText
-                                        )}
-                                    </CTAButton>
-                                )}
                             </ButtonContainer>
                         </div>
                     </Fade>
                 </ContentContainer>
             </HeroContainer>
-
-            {/* Notification pour les résultats de l'API */}
-            <Snackbar
-                open={notification.open}
-                autoHideDuration={6000}
-                onClose={handleCloseNotification}
-                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-            >
-                <Alert
-                    onClose={handleCloseNotification}
-                    severity={notification.severity}
-                    sx={{
-                        background: notification.severity === 'success'
-                            ? 'linear-gradient(135deg, #DAA520, #B8860B)'
-                            : undefined,
-                        color: notification.severity === 'success' ? '#000' : undefined,
-                        fontWeight: 500
-                    }}
-                >
-                    {notification.message}
-                </Alert>
-            </Snackbar>
         </>
     );
 };
